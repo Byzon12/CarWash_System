@@ -74,9 +74,15 @@ WSGI_APPLICATION = 'CarWash_backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'carwash_db',
+        'USER': 'postgres',
+        # Use your actual database password here
+        'PASSWORD': 'Byzone12',
+        'HOST': 'localhost',
+        'PORT': '5433',  # Default PostgreSQL port is 5432, change if needed
+        'ATOMIC_REQUESTS': True,  # Optional: Use atomic requests for better transaction handling
+    }      
 }
 
 
