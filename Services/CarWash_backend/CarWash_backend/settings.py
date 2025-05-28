@@ -11,6 +11,13 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 from pathlib import Path
+import os
+from datetime import timedelta
+# Load environment variables from a .env file
+
+from dotenv import load_dotenv # type: ignore
+
+load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,7 +32,27 @@ SECRET_KEY = 'django-insecure-kf+w=&$zt$hd9$)v13t+@9@gai=#%pzvs_h1-710m&%h*!*921
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]  # Allow all hosts for development; change in production
+# CORS settings
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ),
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+simple_jwt = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  # Access token lifetime
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),  # Refresh token lifetime  
+}
+
+
+
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development; change in production
+CORS_ALLOW_CREDENTIALS = True  # Allow credentials for CORS requests
 
 
 # Application definition
