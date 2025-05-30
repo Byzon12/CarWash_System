@@ -44,9 +44,10 @@ REST_FRAMEWORK = {
     ],
 }
 
-simple_jwt = {
+SIMPLE_JWT= {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  # Access token lifetime
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),  # Refresh token lifetime  
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    # Refresh token lifetime  
 }
 
 
@@ -64,6 +65,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'rest_framework_simplejwt',
+    'corsheaders',  # CORS headers
+    'Users',  # Custom user app
 ]
 
 MIDDLEWARE = [
@@ -76,7 +81,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'CarWash_backend.urls'
+ROOT_URLCONF = 'CarWash_ba  ckend.urls'
 
 TEMPLATES = [
     {
@@ -153,3 +158,7 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+#Custom User Model
+AUTH_USER_MODEL = 'Users.User'  # 
