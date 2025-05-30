@@ -4,8 +4,13 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 
 urlpatterns = [
-    path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    
+    # JWT authentication endpoints
+    # These endpoints are used to obtain and refresh JWT tokens
+    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # User management endpoints
+    # These endpoints are used for user registration and listing users
     path('register/', RegisterUserView.as_view(), name='register_user'),
     path('list/', ListUserView.as_view(), name='list_users'),
 ]

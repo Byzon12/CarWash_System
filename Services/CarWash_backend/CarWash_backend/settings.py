@@ -47,6 +47,8 @@ REST_FRAMEWORK = {
 SIMPLE_JWT= {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  # Access token lifetime
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    "ROTATE_REFRESH_TOKENS": True,  # Rotate refresh tokens
+    "BLACKLIST_AFTER_ROTATION": True,  # Blacklist old refresh tokens after rotation
     # Refresh token lifetime  
 }
 
@@ -81,7 +83,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'CarWash_ba  ckend.urls'
+ROOT_URLCONF = 'CarWash_backend.urls'
 
 TEMPLATES = [
     {
@@ -162,3 +164,4 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 #Custom User Model
 AUTH_USER_MODEL = 'Users.User'  # 
+AUTH_USER_MODEL = 'Users.User'
