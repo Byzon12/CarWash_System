@@ -1,14 +1,15 @@
 from django.db import models
 from django.contrib.auth.models import  AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.hashers import make_password
 
 class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
+    def create_user(self, email,password=None, **extra_fields):
         if not email:
             raise ValueError('The Email field must be set')
         email = self.normalize_email(email)
+        user.set_password(password)  # Hash the password before saving
         user = self.model(email=email, **extra_fields)
         
-        user.set_password(password)
         user.save()
         return user
 
@@ -35,6 +36,8 @@ class User(AbstractBaseUser, PermissionsMixin):
     username = models.CharField(max_length=150, unique=True)
     full_name = models.CharField(max_length=255)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="Customer")
+    # Additional fields for user management
+    
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
     date_joined = models.DateTimeField(auto_now_add=True)
