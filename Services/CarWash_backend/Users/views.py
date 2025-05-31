@@ -1,13 +1,18 @@
-from rest_framework import generics, permissions
+from django.forms import ValidationError
+from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .serializer import UserSerializer
-from django.contrib.auth import get_user_model
+from .serializer import  RegisterUserSerializer, LoginSerializer
+from rest_framework.response import Response
+from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
 
 # Import necessary modules and classes
 # from django.contrib.auth import get_user_model
 # Get the user model
-User = get_user_model()
+
+
+
 
 
 class RegisterUserView(generics.CreateAPIView):
@@ -17,22 +22,33 @@ class RegisterUserView(generics.CreateAPIView):
     
 
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = RegisterUserSerializer
     permission_classes = [permissions.AllowAny]  # Allow any user to register
     
-    #function to create a new user but must be a customer
-    def perform_create(self, serializer):
-        # Ensure the user is created with the role of 'Customer'
-        role = self.request.data.get('role', 'Customer')
-        if role != 'Customer':
-            raise ValueError("Only users with the role 'Customer' can register.")
-        serializer.save(role='Customer')
+
+#login view
+class LoginUserView(generics.GenericAPIView):
+    """
+    View to handle user login.
+    """
+    serializer_class = LoginSerializer
+    permission_classes = [permissions.AllowAny] # Allow any user to login
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        return super().perform_create(serializer)
-    
+        user = serializer.validated_data['user']
+        refresh = RefreshToken.for_user(user)
+        # Generate token or perform any other login logic here
         
+        return Response({
+            'refresh': str(refresh),
+            'access': str(refresh.access_token),
+            'user_id': user.id,
+            'username': user.username,
+            'email': user.email
+        }, status=status.HTTP_200_OK)
     
-      # Allow any user to register
     
 class ListUserView(generics.ListAPIView):
     """_summary_
@@ -42,5 +58,5 @@ class ListUserView(generics.ListAPIView):
         ListAPIView (_type_): _description_
     """
     queryset =User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = RegisterUserSerializer
     permission_classes = [permissions.AllowAny]  # Only admin users can list users

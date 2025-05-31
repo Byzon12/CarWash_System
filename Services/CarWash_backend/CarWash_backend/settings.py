@@ -39,6 +39,8 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
+     'DEFAULT_AUTHENTICATION_CLASSES': ('knox.auth.TokenAuthentication',),
+     
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
@@ -61,6 +63,8 @@ CORS_ALLOW_CREDENTIALS = True  # Allow credentials for CORS requests
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',  # Django admin theme
+     # Use SimpleAdminConfig for Django admin
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -71,6 +75,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'corsheaders',  # CORS headers
     'Users',  # Custom user app
+    'knox',  # Django REST framework authentication
 ]
 
 MIDDLEWARE = [
@@ -81,6 +86,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    
 ]
 
 ROOT_URLCONF = 'CarWash_backend.urls'
@@ -109,7 +115,7 @@ WSGI_APPLICATION = 'CarWash_backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'carwash_db',
+        'NAME': 'Carwash_db',
         'USER': 'postgres',
         # Use your actual database password here
         'PASSWORD': 'Byzone12',
@@ -136,6 +142,7 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+  
 ]
 
 
@@ -163,5 +170,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
 #Custom User Model
-AUTH_USER_MODEL = 'Users.User'  # 
-AUTH_USER_MODEL = 'Users.User'
+
+AUTHENTICATION_BACKENDS = [
+    'Users.authentication.UsernameOrEmailBackend',  # Path to the class above
+    'django.contrib.auth.backends.ModelBackend',    # fallback
+]
+
+AUTHENTICATION_BACKENDS = [
+    'Users.authentication.UsernameOrEmailBackend',  # custom backend
+    'django.contrib.auth.backends.ModelBackend',     # default
+]
