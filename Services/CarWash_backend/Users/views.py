@@ -2,7 +2,8 @@ from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .serializer import  RegisterUserSerializer, LoginSerializer
+from .serializer import  RegisterUserSerializer, LoginSerializer, CustomerProfileSerializer, CustomerProfileUpdateSerializer
+from .models import CustomerProfile
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -48,7 +49,28 @@ class LoginUserView(generics.GenericAPIView):
             'username': user.username,
             'email': user.email
         }, status=status.HTTP_200_OK)
-    
+class CustomerProfileView(generics.RetrieveUpdateAPIView):
+    """
+    View to retrieve and update the customer profile.
+    """
+    queryset = CustomerProfile.objects.all()
+    serializer_class = CustomerProfileSerializer
+    permission_classes = [IsAuthenticated]  # Only authenticated users can access this view
+
+    def get_object(self):
+        # Get the customer profile for the authenticated user
+        return self.queryset.get(user=self.request.user)
+class CustomerProfileUpdateView(generics.UpdateAPIView):
+    """
+    View to update the customer profile.
+    """
+    queryset = CustomerProfile.objects.all()
+    serializer_class = CustomerProfileUpdateSerializer
+    permission_classes = [IsAuthenticated]  # Only authenticated users can access this view
+
+    def get_object(self):
+        # Get the customer profile for the authenticated user
+        return self.queryset.get(user=self.request.user)
     
 class ListUserView(generics.ListAPIView):
     """_summary_
@@ -59,4 +81,4 @@ class ListUserView(generics.ListAPIView):
     """
     queryset =User.objects.all()
     serializer_class = RegisterUserSerializer
-    permission_classes = [permissions.AllowAny]  # Only admin users can list users
+    permission_classes = [permissions.IsAdminUser]  # Only admin users can list users
