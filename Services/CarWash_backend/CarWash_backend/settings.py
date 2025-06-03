@@ -74,7 +74,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',  # CORS headers
-    'Users',  # Custom user app
+    'Users.apps.UsersConfig',  # Custom user app
     'knox',  # Django REST framework authentication
 ]
 

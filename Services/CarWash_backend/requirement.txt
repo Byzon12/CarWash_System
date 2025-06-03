@@ -11,3 +11,4 @@ python-dotenv
 python-dotenv
 django-jazzmin
 pillow
+django-mongodb-backend

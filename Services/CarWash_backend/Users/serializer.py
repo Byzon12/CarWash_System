@@ -179,78 +179,78 @@ class CustomerProfileUpdateSerializer(serializers.ModelSerializer):
     """
     serializer for updating customer profile information.
     
-    """
-    username = serializers.CharField(
-        source='user.username',
-        max_length=150,
-        validators=[UnicodeUsernameValidator()],
-        error_messages={
-            'blank': _('Username cannot be blank.'),
-            'max_length': _('Username cannot exceed 150 characters.')
-        }
-    ) 
-    email = serializers.EmailField(
-        source='user.email',
-        required =False,
-        error_messages={
-            'blank': _('Email cannot be blank.'),
-            'invalid': _('Enter a valid email address.')
-        }
-    )
-    first_name = serializers.CharField(
-        source='user.first_name',
-        max_length=255,
-        error_messages={
-            'blank': _('First name cannot be blank.'),
-            'max_length': _('First name cannot exceed 255 characters.')
-        }
-    )
-    last_name = serializers.CharField(
-        source='user.last_name',
-        max_length=255,
-        error_messages={
-            'blank': _('Last name cannot be blank.'),
-            'max_length': _('Last name cannot exceed 255 characters.')
-        }
-    )
-    phone_number = serializers.CharField(
-        max_length=15,
-        required=False,
-        allow_blank=True,
-        error_messages={
-            'max_length': _('Phone number cannot exceed 15 characters.')
-        }
-    )
-    address = serializers.CharField(
-        allow_blank=True,
-        required=False,
-        error_messages={
-            'blank': _('Address cannot be blank.')
-        }
-    )
-    loyalty_points = serializers.IntegerField(
-        read_only=True,
-        error_messages={
-            'read_only': _('Loyalty points cannot be modified directly.')
-        }
-    )
-    class Meta:
-        model = CustomerProfile
-        fields = ['username', 'email', 'first_name', 'last_name', 'phone_number', 'address', 'loyalty_points']
-        extra_kwargs = {
-            'username': {'required': True, 'allow_blank': False},
-            'email': {'required': False},
-            'first_name': {'required': True},
-            'last_name': {'required': True},
-            'phone_number': {'required': False, 'allow_blank': True},
-            'address': {'required': False, 'allow_blank': True}
-        }
-    def update(self, instance, validated_data):
-        user_data = validated_data.pop('user', {})
-        for attr, value in user_data.items():
-            setattr(instance.user, attr, value)
-        instance.user.save()
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
+        """
+username = serializers.CharField(
+    source='user.username',
+    max_length=150,
+    validators=[UnicodeUsernameValidator()],
+    error_messages={
+        'blank': _('Username cannot be blank.'),
+        'max_length': _('Username cannot exceed 150 characters.')
+    }
+)
+email = serializers.EmailField(
+    source='user.email',
+    required=False,
+    error_messages={
+        'blank': _('Email cannot be blank.'),
+        'invalid': _('Enter a valid email address.')
+    }
+)
+first_name = serializers.CharField(
+    source='user.first_name',
+    max_length=255,
+    error_messages={
+        'blank': _('First name cannot be blank.'),
+        'max_length': _('First name cannot exceed 255 characters.')
+    }
+)
+last_name = serializers.CharField(
+    source='user.last_name',
+    max_length=255,
+    error_messages={
+        'blank': _('Last name cannot be blank.'),
+        'max_length': _('Last name cannot exceed 255 characters.')
+    }
+)
+phone_number = serializers.CharField(
+    max_length=15,
+    required=False,
+    allow_blank=True,
+    error_messages={
+        'max_length': _('Phone number cannot exceed 15 characters.')
+    }
+)
+address = serializers.CharField(
+    allow_blank=True,
+    required=False,
+    error_messages={
+        'blank': _('Address cannot be blank.')
+    }
+)
+loyalty_points = serializers.IntegerField(
+    read_only=True,
+    error_messages={
+        'read_only': _('Loyalty points cannot be modified directly.')
+    }
+)
+class Meta:
+    model = CustomerProfile
+    fields = ['username', 'email', 'first_name', 'last_name', 'phone_number', 'address', 'loyalty_points']
+    extra_kwargs = {
+        'username': {'required': True, 'allow_blank': False},
+        'email': {'required': False},
+        'first_name': {'required': True},
+        'last_name': {'required': True},
+        'phone_number': {'required': False, 'allow_blank': True},
+        'address': {'required': False, 'allow_blank': True}
+    }
+def update(self, instance, validated_data):
+    user_data = validated_data.pop('user', {})
+    for attr, value in user_data.items():
+        setattr(instance.user, attr, value)
+    instance.user.save()
+    for attr, value in validated_data.items():
+        setattr(instance, attr, value)
+    instance.save()
+    return instance

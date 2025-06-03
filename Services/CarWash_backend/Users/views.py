@@ -53,24 +53,20 @@ class CustomerProfileView(generics.RetrieveUpdateAPIView):
     """
     View to retrieve and update the customer profile.
     """
-    queryset = CustomerProfile.objects.all()
-    serializer_class = CustomerProfileSerializer
     permission_classes = [IsAuthenticated]  # Only authenticated users can access this view
-
+    
+    #dynamic serializer selection based on request method
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return CustomerProfileSerializer
+        elif self.request.method in ['PUT', 'PATCH']:
+            return CustomerProfileUpdateSerializer
+        return super().get_serializer_class()
+    
     def get_object(self):
         # Get the customer profile for the authenticated user
-        return self.queryset.get(user=self.request.user)
-class CustomerProfileUpdateView(generics.UpdateAPIView):
-    """
-    View to update the customer profile.
-    """
-    queryset = CustomerProfile.objects.all()
-    serializer_class = CustomerProfileUpdateSerializer
-    permission_classes = [IsAuthenticated]  # Only authenticated users can access this view
-
-    def get_object(self):
-        # Get the customer profile for the authenticated user
-        return self.queryset.get(user=self.request.user)
+        return CustomerProfile.objects.get(user=self.request.user)
+    
     
 class ListUserView(generics.ListAPIView):
     """_summary_
@@ -81,4 +77,4 @@ class ListUserView(generics.ListAPIView):
     """
     queryset =User.objects.all()
     serializer_class = RegisterUserSerializer
-    permission_classes = [permissions.IsAdminUser]  # Only admin users can list users
+    permission_classes = [permissions.AllowAny]  # Only admin users can list users
