@@ -21,3 +21,4 @@ class CustomerProfile(models.Model):
     class Meta:
         verbose_name = 'Customer Profile'
         verbose_name_plural = 'Customer Profiles'
+        
