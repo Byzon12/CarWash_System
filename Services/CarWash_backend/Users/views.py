@@ -2,7 +2,8 @@ from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .serializer import  RegisterUserSerializer, LoginSerializer, CustomerProfileSerializer, CustomerProfileUpdateSerializer,PasswordResetSerializer
+from .serializer import  RegisterUserSerializer, LoginSerializer, CustomerProfileSerializer, CustomerProfileUpdateSerializer,PasswordResetSerializer, PasswordResetConfirmSerializer, PasswordChangeSerializer
+from . import serializer
 from .models import CustomerProfile
 from rest_framework.response import Response
 from rest_framework import status
@@ -94,8 +95,9 @@ class PasswordResetView(generics.GenericAPIView):
             send_mail(
                 subject='Password Reset Request',
                 message= f'Click the link to reset your password: {reset_link}',
-                 from_email= 'byzoneochieng@mail.com',  # from_email (set appropriately)
-                 recipient_list= [user.email],  # recipient_list
+               
+                from_email= 'byzoneochieng@mail.com',  # from_email (set appropriately)
+                recipient_list= [user.email],  # recipient_list
             )
             return Response({'message': 'Password reset email sent.'}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
@@ -108,16 +110,34 @@ class PasswordResetConfirmView(generics.GenericAPIView):
     """
     View to handle password reset confirmation.
     """
-    serializer_class = PasswordResetSerializer  # Use the same serializer for password reset confirmation
-    
+    # Use the same serializer for password reset confirmation
+    serializer_class = PasswordResetConfirmSerializer
+    permission_classes = [permissions.AllowAny]
+    # Allow any user to confirm password reset
     def post(self, request):
-        serializers = self.get_serializer(data=request.data)
         
+        serializers = self.get_serializer(data=request.data)
         serializers.is_valid(raise_exception=True)
         
         serializers.save()
         return Response({'message': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
 
+
+class PasswordChangeView(generics.UpdateAPIView):
+    """
+    View to handle password change for authenticated users.
+    """
+    serializer_class = serializer.PasswordChangeSerializer
+    permission_classes = [AllowAny]  # Only authenticated users can change their password
+
+    def get_object(self):
+        # Get the user object for the authenticated user
+        return self.request.user
+
+    def perform_update(self, serializer):
+        # Save the new password
+        serializer.save()
+        return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
    
     
 class ListUserView(generics.ListAPIView):

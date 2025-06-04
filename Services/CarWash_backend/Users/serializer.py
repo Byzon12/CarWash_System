@@ -206,6 +206,22 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         }
     )
     
+         
+    def validate(self, attrs):
+        """
+        Validate the new password and confirm_password fields.
+        Ensure that they match and meet the required criteria.
+        """
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError(_('Passwords do not match.'))
+        
+        try:
+            validate_password(attrs['new_password'])
+        except ValidationError as e:
+            raise serializers.ValidationError({'new_password': list(e.messages)})
+        
+        return attrs
+    
     def validate_uid(self, value):
         """
         Validate the user ID (uid) for password reset confirmation.
@@ -225,23 +241,9 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         value['user'] = user
         
         return value
-        
-    def validate(self, attrs):
-        """
-        Validate the new password and confirm_password fields.
-        Ensure that they match and meet the required criteria.
-        """
-        if attrs['new_password'] != attrs['confirm_password']:
-            raise serializers.ValidationError(_('Passwords do not match.'))
-        
-        try:
-            validate_password(attrs['new_password'])
-        except ValidationError as e:
-            raise serializers.ValidationError({'new_password': list(e.messages)})
-        
-        return attrs
+   
     
-    def save(self, **kwargs):
+    def create(self, **kwargs):
         """
         removes the confirm_password field from validated_data
         Save the new password for the user.
@@ -253,9 +255,76 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         user.set_password(self.validated_data['new_password'])
         user.save()
         return user
+ 
+class PasswordChangeSerializer(serializers.Serializer):
+    old_password = serializers.CharField(
+        write_only=True,
+        style={'input_type': 'password'},
+        error_messages={
+            'blank': _('Old password cannot be blank.'),
+            'max_length': _('Old password cannot exceed 255 characters.'),
+            'min_length': _('Old password must be at least 8 characters long.')
+        }
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        style={'input_type': 'password'},
+        error_messages={
+            'blank': _('New password cannot be blank.'),
+            'max_length': _('New password cannot exceed 255 characters.'),
+            'min_length': _('New password must be at least 8 characters long.')
+        }
+    )
+    confirm_password = serializers.CharField(
+        write_only=True,
+        style={'input_type': 'password'},
+        error_messages={
+            'blank': _('Confirm password cannot be blank.'),
+            'max_length': _('Confirm password cannot exceed 255 characters.')
+        }
+    )
+    def validate_new_password(self, value):
+        """
+        checks the new password and confirm_password fields.
+        Ensure that they match and meet the required criteria.
+        Validate the new password.
+        Ensure that it meets the required criteria.
+        """
+        confirm_password = self.initial_data.get('confirm_password')
+        if value != confirm_password:
+            raise serializers.ValidationError(_('Passwords do not match.'))
+        
+        try:
+            validate_password(value)
+        except ValidationError as e:
+            raise serializers.ValidationError({'new_password': list(e.messages)})
+        return value
     
-      
-      #updating userprofile
+    def validate(self, attrs):
+        """
+        Validate the old password.
+        Ensure that it matches the user's current password.
+        """
+        user = self.context['request'].user
+        old_password = attrs.get('old_password')
+        if not user.check_password(old_password):
+            raise serializers.ValidationError(_('Old password is incorrect.'))
+        
+        return attrs
+    
+    
+    def save(self, **kwargs):
+        """
+        Save the new password for the user.
+        This method is called after validation to update the user's password.
+        """
+        user = self.context['request'].user
+        new_password = self.validated_data['new_password']
+        user.set_password(new_password)
+        user.save()
+        return user
+
+#updating userprofile
 class CustomerProfileSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(source ="user.first_name")
     last_name = serializers.CharField(source='user.last_name')

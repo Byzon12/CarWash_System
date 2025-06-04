@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import RegisterUserView, ListUserView, LoginUserView, CustomerProfileView, PasswordResetView
+from .views import RegisterUserView, ListUserView, LoginUserView, CustomerProfileView, PasswordResetView, PasswordResetConfirmView, PasswordChangeView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 
@@ -18,6 +18,8 @@ urlpatterns = [
     #password reset endpoint
     # This endpoint is used to reset the password for a user
     path('password-reset/', PasswordResetView.as_view(), name='password_reset'),
+    path('password-reset-confirm/',PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
+    path('password-reset-change/', PasswordChangeView.as_view(), name='password_reset_change'),
     
     path('profile/', CustomerProfileView.as_view(), name='customer_profile'),
 ]
