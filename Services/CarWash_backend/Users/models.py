@@ -22,3 +22,31 @@ class CustomerProfile(models.Model):
         verbose_name = 'Customer Profile'
         verbose_name_plural = 'Customer Profiles'
         
+        
+        
+        # this model is used to store user audit logs
+class AuditLog(models.Model):
+    
+    ACTION_CHOICES = [
+        ('register', 'register user'),
+        ('login', 'login user'),
+        ('logout', 'logout user'),
+        ('update_profile', 'update profile'),
+        ('delete_account', 'delete account'),
+        ('reset_password', 'reset password'),
+        ('change_password', 'change password'),
+        ('other', 'other'),
+        
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.SET_NULL,null=True ,related_name='audit_logs')
+    action = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    details = models.JSONField(blank=True, null=True)
+    ip_address = models.GenericIPAddressField(blank=True, null=True)
+    user_agent = models.CharField(max_length=255, blank=True, null=True)
+    success = models.BooleanField(default=True)
+    
+    def __str__(self):
+        return f"{self.user}-{self.action} at {self.timestamp}"
+    

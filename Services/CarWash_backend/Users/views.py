@@ -12,6 +12,8 @@ from django.contrib.auth.tokens import default_token_generator # This import is 
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode # This import is used to decode and encode the user ID from the URL
 from django.utils.encoding import force_bytes # This import is used to encode the user ID to bytes for token generation
 from django .core.mail import send_mail # This import is used to send emails for user registration and password reset
+#importing the log audit function to log user actions
+from .audit import log_audit_action  # Import the function to log user actions
 
 
 # Import necessary modules and classes
@@ -32,6 +34,21 @@ class RegisterUserView(generics.CreateAPIView):
     serializer_class = RegisterUserSerializer
     permission_classes = [permissions.AllowAny]  # Allow any user to register
     
+    
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            log_audit_action(request, 'register')
+            return Response({'message': 'User registered successfully.'}, status=status.HTTP_201_CREATED)
+        else:
+            log_audit_action(request, 'failed_register', {'reason': serializer.errors})
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+            
+         
+       
+    
 
 #login view
 class LoginUserView(generics.GenericAPIView):
@@ -42,6 +59,10 @@ class LoginUserView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny] # Allow any user to login
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
+        #logging the login attempt
+        log_audit_action(request, 'login_attempt', {'username': request.data.get('username')})
+        # Validate the serializer
+        
         serializer.is_valid(raise_exception=True)
         
         user = serializer.validated_data['user']
@@ -90,7 +111,7 @@ class PasswordResetView(generics.GenericAPIView):
             user = User.objects.get(email=email)
             token = default_token_generator.make_token(user)
             uid = urlsafe_base64_encode(force_bytes(user.pk))
-            reset_link = f"http://example.com/reset-password/{uid}/{token}/"
+            reset_link = f"http://127.0.0.1:8000/user/password-reset-confirm/{uid}/{token}/"
             
             send_mail(
                 subject='Password Reset Request',
