@@ -6,6 +6,9 @@ from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
 from django.contrib.auth.password_validation import validate_password
 from .models import CustomerProfile
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes
+from django.contrib.auth.tokens import default_token_generator
 def validate_email(value):
     raise NotImplementedError
 
@@ -144,6 +147,113 @@ class LoginSerializer(serializers.Serializer):
       
       
       
+  #class serializer for password rquests reset
+class PasswordResetSerializer(serializers.Serializer):
+    """Serializer for handling password reset requests.
+    This serializer validates the email address provided for password reset.
+    """
+    email = serializers.EmailField(
+        max_length=255,
+        error_messages={
+            'blank': _('Email cannot be blank.'),
+            'invalid': _('Enter a valid email address.')
+        }
+    )
+    def validate_email(self, value):
+        """
+        Validate the email address for password reset.
+        Ensure that the email exists in the system.
+        """
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_('Email does not exist.'))
+        return value    
+      
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Serializer for confirming password reset.
+    This serializer validates the new password and ensures it meets the required criteria.
+    
+    """
+    uid = serializers.CharField(
+        write_only=True,
+        error_messages={
+            'blank': _('User ID cannot be blank.'),
+            'max_length': _('User ID cannot exceed 255 characters.')
+        }
+    )
+    tokens = serializers.CharField(
+        write_only=True,
+        error_messages={
+            'blank': _('Token cannot be blank.'),
+            'max_length': _('Token cannot exceed 255 characters.')
+        }
+     
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        style={'input_type': 'password'},
+        error_messages={
+            'blank': _('New password cannot be blank.'),
+            'max_length': _('New password cannot exceed 255 characters.'),
+            'min_length': _('New password must be at least 8 characters long.')
+        }
+    )
+    confirm_password = serializers.CharField(
+        write_only=True,
+        style={'input_type': 'password'},
+        error_messages={
+            'blank': _('Confirm password cannot be blank.'),
+            'max_length': _('Confirm password cannot exceed 255 characters.')
+        }
+    )
+    
+    def validate_uid(self, value):
+        """
+        Validate the user ID (uid) for password reset confirmation.
+        Ensure that the user exists and the uid is valid.
+        confims that is by decoding the uid and checking if the user exists.
+        
+
+        """
+        try:
+            uid = urlsafe_base64_decode(value['uid']).decode('utf-8')
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, User.DoesNotExist):
+            raise serializers.ValidationError(_('Invalid user ID.'))
+        
+        if not default_token_generator.check_token(user, value['tokens']):
+            raise serializers.ValidationError(_('Invalid token.'))
+        value['user'] = user
+        
+        return value
+        
+    def validate(self, attrs):
+        """
+        Validate the new password and confirm_password fields.
+        Ensure that they match and meet the required criteria.
+        """
+        if attrs['new_password'] != attrs['confirm_password']:
+            raise serializers.ValidationError(_('Passwords do not match.'))
+        
+        try:
+            validate_password(attrs['new_password'])
+        except ValidationError as e:
+            raise serializers.ValidationError({'new_password': list(e.messages)})
+        
+        return attrs
+    
+    def save(self, **kwargs):
+        """
+        removes the confirm_password field from validated_data
+        Save the new password for the user.
+        This method is called after validation to update the user's password.
+        """
+        self.validated_data.pop('confirm_password', None)  # Remove confirm_password from validated_data
+        self.validated_data.pop('uid', None)  # Remove uid from validated_data
+        user = self.validated_data['user']
+        user.set_password(self.validated_data['new_password'])
+        user.save()
+        return user
+    
       
       #updating userprofile
 class CustomerProfileSerializer(serializers.ModelSerializer):

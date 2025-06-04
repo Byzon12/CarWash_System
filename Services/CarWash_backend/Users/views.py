@@ -2,11 +2,16 @@ from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .serializer import  RegisterUserSerializer, LoginSerializer, CustomerProfileSerializer, CustomerProfileUpdateSerializer
+from .serializer import  RegisterUserSerializer, LoginSerializer, CustomerProfileSerializer, CustomerProfileUpdateSerializer,PasswordResetSerializer
 from .models import CustomerProfile
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth.tokens import default_token_generator # This import is used to generate tokens for user authentication
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode # This import is used to decode and encode the user ID from the URL
+from django.utils.encoding import force_bytes # This import is used to encode the user ID to bytes for token generation
+from django .core.mail import send_mail # This import is used to send emails for user registration and password reset
+
 
 # Import necessary modules and classes
 # from django.contrib.auth import get_user_model
@@ -67,6 +72,53 @@ class CustomerProfileView(generics.RetrieveUpdateAPIView):
         # Get the customer profile for the authenticated user
         return CustomerProfile.objects.get(user=self.request.user)
     
+    
+class PasswordResetView(generics.GenericAPIView):
+    """
+    View to handle password reset requests.
+    """
+    serializer_class = PasswordResetSerializer  # Use the serializer for password reset
+    permission_classes = [permissions.AllowAny]  # Allow any user to request a password reset
+
+    def post(self, request, *args, **kwargs):
+        email = request.data.get('email')
+        if not email:
+            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            user = User.objects.get(email=email)
+            token = default_token_generator.make_token(user)
+            uid = urlsafe_base64_encode(force_bytes(user.pk))
+            reset_link = f"http://example.com/reset-password/{uid}/{token}/"
+            
+            send_mail(
+                subject='Password Reset Request',
+                message= f'Click the link to reset your password: {reset_link}',
+                 from_email= 'byzoneochieng@mail.com',  # from_email (set appropriately)
+                 recipient_list= [user.email],  # recipient_list
+            )
+            return Response({'message': 'Password reset email sent.'}, status=status.HTTP_200_OK)
+        except User.DoesNotExist:
+            return Response({'error': 'User with this email does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+# view for password reset confirmation
+class PasswordResetConfirmView(generics.GenericAPIView):
+    """
+    View to handle password reset confirmation.
+    """
+    serializer_class = PasswordResetSerializer  # Use the same serializer for password reset confirmation
+    
+    def post(self, request):
+        serializers = self.get_serializer(data=request.data)
+        
+        serializers.is_valid(raise_exception=True)
+        
+        serializers.save()
+        return Response({'message': 'Password has been reset successfully.'}, status=status.HTTP_200_OK)
+
+   
     
 class ListUserView(generics.ListAPIView):
     """_summary_
