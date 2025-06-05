@@ -21,10 +21,18 @@ class AuditLogAdmin(admin.ModelAdmin):
     """
     Admin interface for AuditLog model.
     """
-    list_display =( 'user', 'action', 'timestamp', 'success', 'ip_address', 'user_agent', 'details')
-    readonly_fields = ('user', 'action', 'timestamp', 'success', 'ip_address', 'user_agent', 'details') 
-    search_fields = ('user__username', 'action')
-    list_filter = ('action', 'success', 'timestamp')
+    list_display =('get_user','get_action', 'timestamp', 'success', 'ip_address', 'user_agent', 'details')
+   
     
-    def has_add_permission(self, request):
-        return False
+    @admin.display(description='User')  
+    def get_user(self, obj):
+        """
+        Display the username in the admin interface.
+        """
+        return obj.user if obj.user else 'Anonymous'
+    @admin.display(description='Action')
+    def get_action(self, obj):
+        """
+        Display the action in the admin interface.
+        """
+        return obj.action.replace('_', ' ').capitalize() if obj.action else 'N/A'

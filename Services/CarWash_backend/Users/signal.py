@@ -1,9 +1,11 @@
 from django.db.models.signals import post_save, post_delete, pre_save, pre_delete
 from django.dispatch import receiver
 from django.contrib.auth.models import User
-from .models import CustomerProfile, AuditLog
-from .audit import log_audit_action
+from .utils.audit import log_audit_action
 from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
+from .models import CustomerProfile, AuditLog
+from Users.models import AuditLog
+
 
 @receiver(post_save, sender=User)
 def create_customer_profile(sender, instance, created, **kwargs):

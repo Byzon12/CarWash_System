@@ -1,4 +1,4 @@
-from .models import AuditLog
+from Users.models import AuditLog
 from django.utils import timezone
 from django.contrib.auth.models import User
 
@@ -11,12 +11,14 @@ def log_audit_action(request, action, details=None, success=True):
     :param details: Additional details about the action (optional).
     :param success: Whether the action was successful (default is True).
     """
-    user = request.user if request.user.is_authenticated else None
+  
     ip_address = request.META.get('REMOTE_ADDR')
     user_agent = request.META.get('HTTP_USER_AGENT', '')
+    user =getattr(request, 'user', None)  # Get the user from the request, if available
 
     AuditLog.objects.create(
-        user=user,
+        user = request.user if request.user.is_authenticated else None,  # Use request.user if available, otherwise None
+        # If the user is not authenticated, we set user to None
         action=action,
         timestamp=timezone.now(),
         details=details,

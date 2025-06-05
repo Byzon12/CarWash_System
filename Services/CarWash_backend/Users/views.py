@@ -13,7 +13,7 @@ from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode # Thi
 from django.utils.encoding import force_bytes # This import is used to encode the user ID to bytes for token generation
 from django .core.mail import send_mail # This import is used to send emails for user registration and password reset
 #importing the log audit function to log user actions
-from .audit import log_audit_action  # Import the function to log user actions
+from Users.utils.audit import log_audit_action  # Import the function to log user actions
 
 
 # Import necessary modules and classes
@@ -60,7 +60,7 @@ class LoginUserView(generics.GenericAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         #logging the login attempt
-        log_audit_action(request, 'login_attempt', {'username': request.data.get('username')})
+        
         # Validate the serializer
         
         serializer.is_valid(raise_exception=True)
@@ -170,4 +170,10 @@ class ListUserView(generics.ListAPIView):
     """
     queryset =User.objects.all()
     serializer_class = RegisterUserSerializer
-    permission_classes = [permissions.AllowAny]  # Only admin users can list users
+    permission_classes = [permissions.AllowAny] # Only admin users can list users
+    
+    #logging the user listing action
+    def list(self, request, *args, **kwargs):
+        log_audit_action(request, 'list_users')
+        return super().list(request, *args, **kwargs)
+    
