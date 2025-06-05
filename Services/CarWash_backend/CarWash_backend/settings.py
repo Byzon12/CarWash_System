@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     'corsheaders',  # CORS headers
     'Users.apps.UsersConfig',  # Custom user app
     'knox',  # Django REST framework authentication
+    'Tenant.apps.TenantConfig',  # Tenant management app
 ]
 
 MIDDLEWARE = [

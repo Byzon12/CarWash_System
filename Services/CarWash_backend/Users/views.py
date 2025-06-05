@@ -7,7 +7,7 @@ from . import serializer
 from .models import CustomerProfile
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.tokens import RefreshToken, TokenError  # This import is used to generate JWT tokens for user authentication
 from django.contrib.auth.tokens import default_token_generator # This import is used to generate tokens for user authentication
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode # This import is used to decode and encode the user ID from the URL
 from django.utils.encoding import force_bytes # This import is used to encode the user ID to bytes for token generation
@@ -76,6 +76,34 @@ class LoginUserView(generics.GenericAPIView):
             'username': user.username,
             'email': user.email
         }, status=status.HTTP_200_OK)
+        
+class LogoutUserView(generics.GenericAPIView):
+    """
+    View to handle user logout.
+    """
+    permission_classes = [IsAuthenticated]  # Only authenticated users can logout
+
+    def post(self, request):
+        refresh_token = request.data.get('refresh_token')
+        if not refresh_token:
+            return Response({'error': 'Refresh token is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        # Validate the refresh token
+        try:
+            RefreshToken(refresh_token)  # This will raise an error if the token is invalid
+        except TokenError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # If the token is valid, proceed to logout
+        # Log the user out by blacklisting the refresh token
+        # This will invalidate the token and prevent further access
+        
+        try:
+            # Blacklist the refresh token to log out the user
+            RefreshToken.for_user(request.user).blacklist()
+            log_audit_action(request, 'logout')
+            return Response({'message': 'User logged out successfully.'}, status=status.HTTP_205_RESET_CONTENT)
+        except TokenError as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 class CustomerProfileView(generics.RetrieveUpdateAPIView):
     """
     View to retrieve and update the customer profile.
