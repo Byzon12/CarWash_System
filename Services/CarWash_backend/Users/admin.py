@@ -1,5 +1,6 @@
 
 from django.contrib import admin
+from Tenant.models import TenantProfile,Tenant
 
 
 from .models import CustomerProfile, AuditLog
@@ -36,3 +37,32 @@ class AuditLogAdmin(admin.ModelAdmin):
         Display the action in the admin interface.
         """
         return obj.action.replace('_', ' ').capitalize() if obj.action else 'N/A'
+    
+#registering tenant 
+@admin.register(Tenant)
+class TenantAdmin(admin.ModelAdmin):
+    """
+    Admin interface for Tenant model.
+    """
+    list_display = ('name', 'contact_email', 'contact_phone', 'created_at', 'updated_at')
+    search_fields = ('name', 'contact_email', 'contact_phone')
+    list_filter = ('created_at', 'updated_at')
+    
+    
+  #tenant profile admin  
+    
+@admin.register(TenantProfile)
+class TenantProfileAdmin(admin.ModelAdmin):
+    """
+    Admin interface for TenantProfile model.
+    """
+    list_display = ('tenant','business_name', 'phone_number', 'created_at', 'updated_at', 'logo')
+    search_fields = ('business_name', 'email', 'phone_number')
+    list_filter = ('created_at', 'updated_at')
+    
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for TenantProfile.
+        """
+        return False
+    
