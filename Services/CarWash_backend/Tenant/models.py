@@ -30,7 +30,6 @@ class TenantProfile(models.Model):
     username = models.CharField(max_length=150, unique=True)
     first_name = models.CharField(max_length=30, blank=True, null=True)
     last_name = models.CharField(max_length=30, blank=True, null=True)
-   
     business_name = models.CharField(max_length=100, blank=True, null=True)
     business_email = models.EmailField(max_length=254, blank=True, null=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
