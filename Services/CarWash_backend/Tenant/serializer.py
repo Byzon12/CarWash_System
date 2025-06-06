@@ -36,13 +36,9 @@ class TenantprofileSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'phone_number':( _('Phone number must be in international format. must start with +254.'))
             })
-            # validate if the bussiness email or phone number already exists
-        
-        if TenantProfile.objects.filter(
-            Q(phone_number=phone_number) | Q(business_email=business_email)
-        ).exists():
-            raise serializers.ValidationError(_('Business email or phone number already exists.'))
+      
         return data
+
     # validate if the business name is already taken
     def validate_business_name(self, value):
         if TenantProfile.objects.filter(business_name__iexact=value).exists():
@@ -50,13 +46,11 @@ class TenantprofileSerializer(serializers.ModelSerializer):
         return value
 
 # perform update method to ensure that the tenant profile is updated correctly
-    def update(self, instance, validated_data):
+    def update(self, instance, validated_data):# -> Any:
         """Update the tenant profile instance with validated data."""
         # Update the tenant profile instance with the validated data
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
+        validated_data['tenant'] = self.context.get('request').tenant if hasattr(self.context.get('request'), 'tenant') else None
+        return super().update(instance, validated_data)
 
     def create(self, validated_data):
         """Create a new tenant profile instance."""

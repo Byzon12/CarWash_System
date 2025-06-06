@@ -37,11 +37,7 @@ class TenantProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     logo = models.ImageField(upload_to='tenant_logos/', blank=True, null=True)
-    facebook_link = models.URLField(max_length=200, blank=True, null=True)
-    instagram_link = models.URLField(max_length=200, blank=True, null=True)
-    twitter_link = models.URLField(max_length=200, blank=True, null=True)
-    tiktok_link = models.URLField(max_length=200, blank=True, null=True)
-    
+   
     def save(self, *args, **kwargs):
         """Override save method to set the tenant if not already set."""
         if not self.tenant:
