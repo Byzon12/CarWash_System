@@ -6,7 +6,7 @@ from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
-from Tenant.models import TenantProfile
+from Tenant.models import Employee, TenantProfile, Tenant
 from django.contrib.auth.hashers import check_password
 
 # serializer to handle Tenant login with the username and password
@@ -57,28 +57,24 @@ class TenantLoginSerializer(serializers.Serializer):
         """Return the tenant profile associated with the validated data."""
         tenant = self.validated_data.get('tenant', None)
         if tenant:
-            return {
-                'id': tenant.pk,
-                'name': tenant.name,
+          """  return {
                 'tenant_profile': {
                     'id': self.validated_data['tenant_profile'].pk,
-                        'business_name': self.validated_data['tenant_profile'].business_name,
-                        'business_email': self.validated_data['tenant_profile'].business_email,
-                        'phone_number': self.validated_data['tenant_profile'].phone_number,
+                    'business_name': self.validated_data['tenant_profile'].business_name,
+                    'business_email': self.validated_data['tenant_profile'].business_email,
+                    'phone_number': self.validated_data['tenant_profile'].phone_number,
                         'address': self.validated_data['tenant_profile'].address,
                         'created_at': self.validated_data['tenant_profile'].created_at,
                         'updated_at': self.validated_data['tenant_profile'].updated_at
                     }
-                }
-
+                }"""
+        return f"Tenant Profile for {tenant.name} with ID {tenant.id}"
 
     
     def get_tenant(self):
        return self.validated_data.get('tenant', None)
 
     # method to return the tenant profile
-
-
 # TenantProfile Serializer
 class TenantProfileSerializer(serializers.ModelSerializer):
     tenant = serializers.StringRelatedField(read_only=True)
@@ -130,3 +126,74 @@ class TenantProfileSerializer(serializers.ModelSerializer):
             raise ValidationError(_('Tenant must be set.'))
         validated_data['tenant'] = tenant
         return super().create(validated_data)
+
+# serializer to handle employee creation
+class CreateEmpoyeeSerializer(serializers.Serializer):
+    ROLE_CHOICES = (
+        ('manager', _('Manager')),
+        ('staff', _('Staff')),
+        ('cleaner', _('Cleaner')),
+        ('security', _('Security')),
+        ('receptionist', _('Receptionist')),
+    )
+    username = serializers.CharField(
+        max_length=150,
+        min_length=3,
+        validators=[UnicodeUsernameValidator()],
+        error_messages={
+            'blank': _('Username cannot be blank.'),
+            'max_length': _('Username cannot exceed 150 characters.'),
+            'min_length': _('Username must be at least 3 characters long.')
+        }
+    )
+
+    full_name = serializers.CharField(
+        max_length=100,
+        error_messages={
+            'blank': _('Full name cannot be blank.'),
+            'max_length': _('Full name cannot exceed 100 characters.')
+        }
+    )
+    email = serializers.EmailField(
+        error_messages={
+            'blank': _('Email cannot be blank.'),
+            'invalid': _('Enter a valid email address.')
+        }
+    )
+    phone_number = serializers.CharField(
+        max_length=15,
+        error_messages={
+            'blank': _('Phone number cannot be blank.'),
+            'max_length': _('Phone number cannot exceed 15 characters.')
+        }
+    )
+    position = serializers.ChoiceField(
+        choices=ROLE_CHOICES,
+        error_messages={
+            'invalid_choice': _('Invalid position choice.'),
+            'blank': _('Position cannot be blank.')
+        }
+        
+    )
+    
+    class Meta:
+        model = Employee
+        fields = '__all__'
+    def validate(self, data):
+        """Custom validation to ensure email and phone number are unique."""
+        email = data.get('email')
+        phone_number = data.get('phone_number')
+
+        if Employee.objects.filter(email=email).exists():
+            raise serializers.ValidationError({'email': _('Email already exists.')})
+
+        if Employee.objects.filter(phone_number=phone_number).exists():
+            raise serializers.ValidationError({'phone_number': _('Phone number already exists.')})
+
+        return data
+    
+    def create(self, validated_data):
+        """Create a new employee"""
+        employee = Employee.objects.create(**validated_data)
+
+        return employee

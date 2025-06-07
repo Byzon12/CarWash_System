@@ -2,6 +2,8 @@ from django.contrib.auth.hashers import make_password
 from django.db import models
 from Users.models import User
 from django.utils import timezone
+from django.utils.safestring import mark_safe
+
 
 
 # Create your models here.
@@ -44,6 +46,12 @@ class TenantProfile(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     logo = models.ImageField(upload_to='tenant_logos/', blank=True, null=True)
+    
+    def image_tag(self):
+        if self.logo:
+            return mark_safe(f'<img src="{self.logo.url}" width="50" height="50" />')
+        return "No Logo"
+        return "No Logo"
    
     def save(self, *args, **kwargs):
         """Override save method to set the tenant if not already set."""
@@ -61,3 +69,30 @@ class TenantProfile(models.Model):
         
     #comment
     #
+    
+    
+# creating employee model for tenant
+class Employee(models.Model):
+#creating role choices for employee
+    ROLE_CHOICES = [
+        ('manager', 'Manager'),
+        ('staff', 'Staff'),
+        ('cleaner', 'Cleaner'),
+        ('driver', 'Driver'),
+        ('receptionist', 'Receptionist'),
+    ]
+    """Model representing an employee of a tenant.
+    An employee is associated with only one tenant and has their own portal profile."""
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='employees')
+    username = models.CharField(max_length=150, unique=True, blank=True, null=True)
+    work_email= models.EmailField(max_length=254, unique=True)
+    full_name = models.CharField(max_length=100)
+    position = models.CharField(max_length=100, blank=True, null=True, choices=ROLE_CHOICES, default='staff')
+    phone_number = models.CharField(max_length=15, blank=True, null=True)
+    email = models.EmailField(max_length=254, blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.full_name} - {self.position} at {self.tenant.name}"

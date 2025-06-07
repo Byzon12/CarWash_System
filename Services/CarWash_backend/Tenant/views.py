@@ -1,11 +1,12 @@
 from ast import Is
+from tkinter import E
 from django.shortcuts import render
 from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .models import Tenant, TenantProfile
-from .serializer import TenantProfileSerializer, TenantLoginSerializer
+from .models import Employee, Tenant, TenantProfile
+from .serializer import TenantProfileSerializer, TenantLoginSerializer, CreateEmpoyeeSerializer
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken,TokenError  # This import is used to generate JWT tokens for user authentication
@@ -25,12 +26,20 @@ class TenantLoginView(generics.GenericAPIView):
         refresh = RefreshToken.for_user(tenant)
         return Response({
             'token': str(refresh),
-            'tenant': serializer.get_tenant_profile(),
-            'access': str(refresh.access_token)
+            'access': str(refresh.access_token),
+            'tenant': serializer.get_tenant_profile()
         })
+# this to handle tenant logout
+class TenantLogoutView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request, *args, **kwargs):
 
-# Api view to handle tenant profile creation, update and retrieval
-
+        try:
+            # Attempt to blacklist the token
+            RefreshToken.for_user(request.user).blacklist()
+            return Response({'detail': _('Successfully logged out.')}, status=200)
+        except TokenError:
+            return Response({'detail': _('Token is already blacklisted or invalid.')}, status=400)
 
 
 class TenantProfileView(generics.RetrieveUpdateAPIView):
@@ -58,3 +67,24 @@ class TenantProfileView(generics.RetrieveUpdateAPIView):
         if not tenant:
             raise ValidationError(_('Tenant must be set.'))
         serializer.save(tenant=tenant)
+
+ # api view to handle employee creation
+ 
+class CreateEmployeeView(generics.CreateAPIView):
+    serializer_class = CreateEmpoyeeSerializer
+    permission_classes= [AllowAny]  # Allow any user to create an employee, you can change this to IsAuthenticated if you want to restrict access
+     # method to create an employee
+
+    def post(self, request):
+        serializers= self.get_serializer(data= request.data)
+        serializers.is_valid(raise_exception=True)
+        serializers.save()
+        return Response(serializers.data, status=201)
+
+#class to list all employees of a tenant
+class ListEmployeeView(generics.ListAPIView):
+    queryset = Employee.objects.all()
+    serializer_class = CreateEmpoyeeSerializer
+    permission_classes = [AllowAny]  # Allow any user to list employees, you can change this to IsAuthenticated if you want to restrict access
+
+    

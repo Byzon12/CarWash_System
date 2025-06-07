@@ -1,6 +1,6 @@
 
 from django.contrib import admin
-from Tenant.models import TenantProfile,Tenant
+from Tenant.models import TenantProfile,Tenant, Employee
 
 
 from .models import CustomerProfile, AuditLog
@@ -65,4 +65,19 @@ class TenantProfileAdmin(admin.ModelAdmin):
         Disable the add permission for TenantProfile.
         """
         return False
+
+
+#employee admin
+
+@admin.register(Employee)
+class EmployeeAdmin(admin.ModelAdmin):
+    """Admin interface for employee model. """
     
+    list_display = ('tenant', 'full_name', 'work_email', 'phone_number', 'position')
+    search_fields = ('tenant__name', 'full_name', 'work_email', 'phone_number')
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for Employee.
+        """
+        return True
