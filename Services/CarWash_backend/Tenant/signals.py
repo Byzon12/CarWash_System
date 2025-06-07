@@ -8,5 +8,8 @@ def create_tenant_profile(sender, instance,created,**kwargs):
     if created:
         TenantProfile.objects.create(
             tenant=instance,
-            username=f"{instance.name.lower().replace(' ', '_')}_admin"
+            username=f"{instance.name}_{instance.id}",
+            business_name=instance.name,
+            business_email=f"{instance.contact_email.split('@')[0]}@tenant.com",
+            phone_number=instance.contact_phone
         )

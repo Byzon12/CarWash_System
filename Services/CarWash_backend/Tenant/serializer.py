@@ -7,10 +7,80 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
 from Tenant.models import TenantProfile
+from django.contrib.auth.hashers import check_password
+
+# serializer to handle Tenant login with the username and password
+class TenantLoginSerializer(serializers.Serializer):
+    username = serializers.CharField(
+        max_length=150,
+        min_length=3,
+        validators=[UnicodeUsernameValidator()],
+        error_messages={
+            'blank': _('Username cannot be blank.'),
+            'max_length': _('Username cannot exceed 150 characters.'),
+            'min_length': _('Username must be at least 3 characters long.')
+        }
+    )
+    password = serializers.CharField(
+        write_only=True,
+        style={'input_type': 'password'},
+        error_messages={
+            'blank': _('Password cannot be blank.')
+        }
+    )
+
+    def validate(self, data):
+        """Validate the username and password."""
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            raise serializers.ValidationError(_('Username and password are required.'))
+        
+        try:
+            tenant_profile = TenantProfile.objects.get(
+                Q(business_email=username) | Q(username=username)
+            )
+           
+        except TenantProfile.DoesNotExist:
+            raise serializers.ValidationError(_('Invalid username or password.'))
+
+        tenant = tenant_profile.tenant
+        if not check_password(password, tenant.password):
+            raise serializers.ValidationError(_('Invalid username or password.'))
+        data['tenant'] = tenant
+        data['tenant_profile'] = tenant_profile
+
+        return data
+    # method to return the tenant profile
+    def get_tenant_profile(self):
+        """Return the tenant profile associated with the validated data."""
+        tenant = self.validated_data.get('tenant', None)
+        if tenant:
+            return {
+                'id': tenant.pk,
+                'name': tenant.name,
+                'tenant_profile': {
+                    'id': self.validated_data['tenant_profile'].pk,
+                        'business_name': self.validated_data['tenant_profile'].business_name,
+                        'business_email': self.validated_data['tenant_profile'].business_email,
+                        'phone_number': self.validated_data['tenant_profile'].phone_number,
+                        'address': self.validated_data['tenant_profile'].address,
+                        'created_at': self.validated_data['tenant_profile'].created_at,
+                        'updated_at': self.validated_data['tenant_profile'].updated_at
+                    }
+                }
+
+
+    
+    def get_tenant(self):
+       return self.validated_data.get('tenant', None)
+
+    # method to return the tenant profile
 
 
 # TenantProfile Serializer
-class TenantprofileSerializer(serializers.ModelSerializer):
+class TenantProfileSerializer(serializers.ModelSerializer):
     tenant = serializers.StringRelatedField(read_only=True)
     name = serializers.CharField(source='tenant.name', read_only=True)
     created_at = serializers.DateTimeField(read_only=True)

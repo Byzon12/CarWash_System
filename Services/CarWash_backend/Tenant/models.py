@@ -1,3 +1,4 @@
+from django.contrib.auth.hashers import make_password
 from django.db import models
 from Users.models import User
 from django.utils import timezone
@@ -9,6 +10,7 @@ class Tenant(models.Model):
     """Model representing a tenant in the system.
     A tenant can be a business or organization that uses the application."""
     name = models.CharField(max_length=100, unique=True)
+    password = models.CharField(max_length=128, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     contact_email = models.EmailField(max_length=254, unique=True)
     contact_phone = models.CharField(max_length=15, blank=True, null=True)
@@ -19,6 +21,11 @@ class Tenant(models.Model):
 
     def __str__(self):
         return self.name
+     #hash password before saving
+    def save(self, *args, **kwargs):
+        if self.password:
+            self.password = make_password(self.password)
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = 'Tenant'
