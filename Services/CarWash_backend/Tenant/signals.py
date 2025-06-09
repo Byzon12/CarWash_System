@@ -13,3 +13,4 @@ def create_tenant_profile(sender, instance,created,**kwargs):
             business_email=f"{instance.contact_email.split('@')[0]}@tenant.com",
             phone_number=instance.contact_phone
         )
+

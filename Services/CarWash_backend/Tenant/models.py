@@ -69,11 +69,8 @@ class TenantProfile(models.Model):
         
     #comment
     #
-    
-    
-# creating employee model for tenant
-class Employee(models.Model):
-#creating role choices for employee
+class EmployeeRole(models.Model):
+ 
     ROLE_CHOICES = [
         ('manager', 'Manager'),
         ('staff', 'Staff'),
@@ -81,15 +78,30 @@ class Employee(models.Model):
         ('driver', 'Driver'),
         ('receptionist', 'Receptionist'),
     ]
+    """Model representing different roles an employee can have within a tenant."""
+    role_type = models.CharField(max_length=50, choices=ROLE_CHOICES, default='staff')
+    description = models.TextField(blank=True, null=True)
+    salary_role = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.role_type}"
+ #clf.role_type}" 
+    
+# creating employee model for tenant
+class Employee(models.Model):
+
+    
     """Model representing an employee of a tenant.
     An employee is associated with only one tenant and has their own portal profile."""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='employees')
     username = models.CharField(max_length=150, unique=True, blank=True, null=True)
     work_email= models.EmailField(max_length=254, unique=True)
     full_name = models.CharField(max_length=100)
-    position = models.CharField(max_length=100, blank=True, null=True, choices=ROLE_CHOICES, default='staff')
+    position = models.CharField(max_length=100, blank=True, null=True, )
+    role = models.ForeignKey(EmployeeRole, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     email = models.EmailField(max_length=254, blank=True, null=True)
+    salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

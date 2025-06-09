@@ -6,7 +6,7 @@ from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
 from .models import Employee, Tenant, TenantProfile
-from .serializer import TenantProfileSerializer, TenantLoginSerializer, CreateEmpoyeeSerializer
+from .serializer import TenantProfileSerializer, TenantLoginSerializer, CreateEmpoyeeSerializer, EmployeeRoleSalarySerializer
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken,TokenError  # This import is used to generate JWT tokens for user authentication
@@ -87,4 +87,12 @@ class ListEmployeeView(generics.ListAPIView):
     serializer_class = CreateEmpoyeeSerializer
     permission_classes = [AllowAny]  # Allow any user to list employees, you can change this to IsAuthenticated if you want to restrict access
 
-    
+    #view to update the salarya of an employee and a sign roles
+class UpdateEmployeeSalaryView(generics.UpdateAPIView):
+    queryset = Employee.objects.all()
+    serializer_class = EmployeeRoleSalarySerializer
+    permission_classes = [AllowAny]  # Allow any user to update employee salary
+
+    def perform_update(self, serializer):
+        # Here you can add any additional logic before saving the updated employee
+        serializer.save()  # Save the updated employee instance

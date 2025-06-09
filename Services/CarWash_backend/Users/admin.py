@@ -1,6 +1,6 @@
 
 from django.contrib import admin
-from Tenant.models import TenantProfile,Tenant, Employee
+from Tenant.models import EmployeeRole, TenantProfile,Tenant, Employee,EmployeeRole
 
 
 from .models import CustomerProfile, AuditLog
@@ -79,5 +79,21 @@ class EmployeeAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """
         Disable the add permission for Employee.
+        """
+        return True
+
+    #admin site to register employee salary and roles
+@admin.register(EmployeeRole)
+class EmployeeRoleAdmin(admin.ModelAdmin):
+    """
+    Admin interface for EmployeeRole model.
+    """
+    list_display = ('role_type', 'description', 'salary_role')
+    list_filter = ('role_type',)
+    search_fields = ('role_type',)
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for EmployeeRole.
         """
         return True

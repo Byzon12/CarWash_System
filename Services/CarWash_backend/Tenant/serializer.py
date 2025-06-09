@@ -1,12 +1,13 @@
 
 from email import message
+from os import read
 from urllib import request
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
-from Tenant.models import Employee, TenantProfile, Tenant
+from Tenant.models import Employee, TenantProfile, Tenant, EmployeeRole
 from django.contrib.auth.hashers import check_password
 
 # serializer to handle Tenant login with the username and password
@@ -197,3 +198,76 @@ class CreateEmpoyeeSerializer(serializers.Serializer):
         employee = Employee.objects.create(**validated_data)
 
         return employee
+    
+# serializer to handle employee role and salary creation
+class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
+    ROLE_CHOICES = (
+        ('manager', _('Manager')),
+        ('staff', _('Staff')),
+        ('cleaner', _('Cleaner')),
+        ('security', _('Security')),
+        ('receptionist', _('Receptionist')),
+        
+    )
+    
+    salary_map = {
+        'manager': 5000.00,
+        'staff': 3000.00,
+        'cleaner': 2000.00,
+        'security': 2500.00,
+        'receptionist': 3500.00,
+    }
+    
+
+    description = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        error_messages={
+            'max_length': _('Description cannot exceed 255 characters.')
+        }
+    )
+    role_type = serializers.ChoiceField(
+        choices=ROLE_CHOICES,
+        error_messages={
+            'invalid_choice': _('Invalid role type choice.'),
+            'blank': _('Role type cannot be blank.')
+        }
+    )
+    
+    class Meta:
+        model = EmployeeRole
+        fields = ['role_type', 'description', 'salary_role']
+       # read_only_fields = ["salary_role"]
+
+    def validate(self, data):
+        role_type = data.get('role_type')
+        if not role_type:
+            raise serializers.ValidationError({'role_type': _('Role type is required.')})
+
+        return data
+    
+    #create method to create a new employee role and salary
+    def create(self, validated_data):
+        role_type = validated_data.get('role_type')
+        description = validated_data.get('description', '')
+        salary_role = self.salary_map.get(role_type, 0.00)
+
+        employee_role = EmployeeRole.objects.create(
+            role_type=role_type,
+            description=description,
+            salary_role=salary_role
+        )
+
+        return employee_role
+
+    def update(self, instance, validated_data):
+        """Update the employee role and salary."""
+        instance.role_type = validated_data.get('role_type', instance.role_type)
+        instance.description = validated_data.get('description', instance.description)
+        instance.salary_role = validated_data.get('salary_role', instance.salary_role)
+        # Automatically set the salary based on the role type
+    
+        instance.save()
+        return instance
+    
