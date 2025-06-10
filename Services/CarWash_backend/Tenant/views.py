@@ -6,7 +6,7 @@ from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
 from .models import Employee, Tenant, TenantProfile
-from .serializer import TenantProfileSerializer, TenantLoginSerializer, CreateEmpoyeeSerializer, EmployeeRoleSalarySerializer
+from .serializer import TenantProfileSerializer, TenantLoginSerializer, EmployeeRoleSalarySerializer, CreateEmployeeSerializer
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken,TokenError  # This import is used to generate JWT tokens for user authentication
@@ -71,7 +71,7 @@ class TenantProfileView(generics.RetrieveUpdateAPIView):
  # api view to handle employee creation
  
 class CreateEmployeeView(generics.CreateAPIView):
-    serializer_class = CreateEmpoyeeSerializer
+    serializer_class = CreateEmployeeSerializer
     permission_classes= [AllowAny]  # Allow any user to create an employee, you can change this to IsAuthenticated if you want to restrict access
      # method to create an employee
 
@@ -84,11 +84,12 @@ class CreateEmployeeView(generics.CreateAPIView):
 #class to list all employees of a tenant
 class ListEmployeeView(generics.ListAPIView):
     queryset = Employee.objects.all()
-    serializer_class = CreateEmpoyeeSerializer
+    serializer_class = CreateEmployeeSerializer
     permission_classes = [AllowAny]  # Allow any user to list employees, you can change this to IsAuthenticated if you want to restrict access
 
     #view to update the salarya of an employee and a sign roles
 class UpdateEmployeeSalaryView(generics.UpdateAPIView):
+    
     queryset = Employee.objects.all()
     serializer_class = EmployeeRoleSalarySerializer
     permission_classes = [AllowAny]  # Allow any user to update employee salary
@@ -96,3 +97,16 @@ class UpdateEmployeeSalaryView(generics.UpdateAPIView):
     def perform_update(self, serializer):
         # Here you can add any additional logic before saving the updated employee
         serializer.save()  # Save the updated employee instance
+    
+    #class to delete an employee
+class DeleteEmployeeView(generics.DestroyAPIView):
+    
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to delete employees
+    
+    # Method to delete an employee
+    def delete(self, request, *args, **kwargs):
+        employee = self.get_object(pk=kwargs.get('pk'), tenant=request.tenant)
+        if not employee:
+            return Response({'detail': _('Employee not found.')}, status=404)
+        employee.delete()
+        return Response({'detail': _('Employee deleted successfully.')}, status=204)

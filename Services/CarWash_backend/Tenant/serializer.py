@@ -1,4 +1,5 @@
 
+from ctypes import FormatError
 from email import message
 from os import read
 from urllib import request
@@ -128,8 +129,80 @@ class TenantProfileSerializer(serializers.ModelSerializer):
         validated_data['tenant'] = tenant
         return super().create(validated_data)
 
+
+
+# serializer to handle employee role and salary
+class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
+    ROLE_CHOICES = (
+        ('manager', _('Manager')),
+        ('staff', _('Staff')),
+        ('cleaner', _('Cleaner')),
+        ('security', _('Security')),
+        ('receptionist', _('Receptionist')),
+    )
+
+    salary_map = {
+        'manager': 5000.00,
+        'staff': 3000.00,
+        'cleaner': 2000.00,
+        'security': 2500.00,
+        'receptionist': 3500.00,
+    }
+
+    description = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_blank=True,
+        error_messages={
+            'max_length': _('Description cannot exceed 255 characters.')
+        }
+    )
+    role_type = serializers.ChoiceField(
+        choices=ROLE_CHOICES,
+        error_messages={
+            'invalid_choice': _('Invalid role type choice.'),
+            'blank': _('Role type cannot be blank.')
+        }
+    )
+
+    salary = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        read_only=True,
+        error_messages={
+            'invalid': _('Salary must be a valid decimal number.'),
+            'max_digits': _('Salary cannot exceed 10 digits.'),
+            'decimal_places': _('Salary must have up to 2 decimal places.')
+        }
+    )
+
+    class Meta:
+        model = EmployeeRole
+        fields = ['role_type', 'description', 'salary']
+        
+
+    def create(self, validated_data):
+        role_type = validated_data.get('role_type')
+        salary = self.salary_map.get(role_type, 0.00)
+        return EmployeeRole.objects.create(
+            role_type=role_type,
+            description=validated_data.get('description', ''),
+            salary=salary
+        )
+
+    def update(self, instance, validated_data):
+        role_type = validated_data.get('role_type', instance.role_type)
+        description = validated_data.get('description', instance.description)
+        salary = self.salary_map.get(role_type, instance.salary)
+
+        instance.role_type = role_type
+        instance.description = description
+        instance.salary = salary
+        instance.save()
+        return instance
+
 # serializer to handle employee creation
-class CreateEmpoyeeSerializer(serializers.Serializer):
+class CreateEmployeeSerializer(serializers.ModelSerializer):
     ROLE_CHOICES = (
         ('manager', _('Manager')),
         ('staff', _('Staff')),
@@ -168,14 +241,24 @@ class CreateEmpoyeeSerializer(serializers.Serializer):
             'max_length': _('Phone number cannot exceed 15 characters.')
         }
     )
-    position = serializers.ChoiceField(
-        choices=ROLE_CHOICES,
-        error_messages={
-            'invalid_choice': _('Invalid position choice.'),
-            'blank': _('Position cannot be blank.')
+
+    role = serializers.SerializerMethodField()
+
+    def get_role(self, obj):
+        if obj.role:
+            return {
+                'role_type': obj.role.role_type,
+                'salary': obj.role.salary,
+                'description': obj.role.description
+            }
+        return {
+            'role_type': _('Role cannot be blank.')
         }
+        required=False,  # Role is optional during creation
+        allow_null=True,# Allow null value for role
         
-    )
+        
+    
     
     class Meta:
         model = Employee
@@ -198,76 +281,12 @@ class CreateEmpoyeeSerializer(serializers.Serializer):
         employee = Employee.objects.create(**validated_data)
 
         return employee
+        #method to get the role salary of an employee
     
-# serializer to handle employee role and salary creation
-class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
-    ROLE_CHOICES = (
-        ('manager', _('Manager')),
-        ('staff', _('Staff')),
-        ('cleaner', _('Cleaner')),
-        ('security', _('Security')),
-        ('receptionist', _('Receptionist')),
-        
-    )
-    
-    salary_map = {
-        'manager': 5000.00,
-        'staff': 3000.00,
-        'cleaner': 2000.00,
-        'security': 2500.00,
-        'receptionist': 3500.00,
-    }
-    
-
-    description = serializers.CharField(
-        max_length=255,
-        required=False,
-        allow_blank=True,
-        error_messages={
-            'max_length': _('Description cannot exceed 255 characters.')
-        }
-    )
-    role_type = serializers.ChoiceField(
-        choices=ROLE_CHOICES,
-        error_messages={
-            'invalid_choice': _('Invalid role type choice.'),
-            'blank': _('Role type cannot be blank.')
-        }
-    )
-    
-    class Meta:
-        model = EmployeeRole
-        fields = ['role_type', 'description', 'salary_role']
-       # read_only_fields = ["salary_role"]
-
-    def validate(self, data):
-        role_type = data.get('role_type')
-        if not role_type:
-            raise serializers.ValidationError({'role_type': _('Role type is required.')})
-
-        return data
-    
-    #create method to create a new employee role and salary
-    def create(self, validated_data):
-        role_type = validated_data.get('role_type')
-        description = validated_data.get('description', '')
-        salary_role = self.salary_map.get(role_type, 0.00)
-
-        employee_role = EmployeeRole.objects.create(
-            role_type=role_type,
-            description=description,
-            salary_role=salary_role
-        )
-
-        return employee_role
-
-    def update(self, instance, validated_data):
-        """Update the employee role and salary."""
-        instance.role_type = validated_data.get('role_type', instance.role_type)
-        instance.description = validated_data.get('description', instance.description)
-        instance.salary_role = validated_data.get('salary_role', instance.salary_role)
-        # Automatically set the salary based on the role type
-    
-        instance.save()
-        return instance
-    
+    def get_role_salary(self, obj):
+        if obj.role:
+            return {
+                'role_type': obj.role.role_type,
+                'salary_role': obj.role.salary_role,
+                'description': obj.role.description
+            }   

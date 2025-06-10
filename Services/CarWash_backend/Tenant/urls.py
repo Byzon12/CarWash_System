@@ -13,4 +13,7 @@ urlpatterns = [
   path('employees/list/', ListEmployeeView.as_view(), name='list-employee-view'),
   path('employees/update/<int:pk>/', UpdateEmployeeSalaryView.as_view(), name='update-employee-salary-view'),
   path('employees/', CreateEmployeeView.as_view(), name='create-employee-view'),
+  
+  #deleting an employee 
+  path('employees/delete/<int:pk>/', UpdateEmployeeSalaryView.as_view(), name='delete-employee-view'),
 ]

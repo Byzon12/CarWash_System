@@ -78,14 +78,29 @@ class EmployeeRole(models.Model):
         ('driver', 'Driver'),
         ('receptionist', 'Receptionist'),
     ]
+
+
+    SALARY_MAP = {
+        'manager': 5000.00,
+        'staff': 3000.00,
+        'cleaner': 2000.00,
+        'security': 2500.00,
+        'receptionist': 3500.00,
+    }
+    
     """Model representing different roles an employee can have within a tenant."""
     role_type = models.CharField(max_length=50, choices=ROLE_CHOICES, default='staff')
     description = models.TextField(blank=True, null=True)
-    salary_role = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+  
+    def save(self, *args, **kwargs):
+        """Override save method to set the salary based on role type."""
+        if not self.salary:
+            self.salary = self.SALARY_MAP.get(self.role_type, 0.00)
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"{self.role_type}"
- #clf.role_type}" 
+        return f"{self.role_type} "
     
 # creating employee model for tenant
 class Employee(models.Model):
@@ -97,14 +112,12 @@ class Employee(models.Model):
     username = models.CharField(max_length=150, unique=True, blank=True, null=True)
     work_email= models.EmailField(max_length=254, unique=True)
     full_name = models.CharField(max_length=100)
-    position = models.CharField(max_length=100, blank=True, null=True, )
-    role = models.ForeignKey(EmployeeRole, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
+    role_type = models.ForeignKey(EmployeeRole, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     email = models.EmailField(max_length=254, blank=True, null=True)
-    salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.full_name} - {self.position} at {self.tenant.name}"
+        return f"{self.full_name} - {self.tenant.name}"

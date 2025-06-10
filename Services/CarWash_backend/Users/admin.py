@@ -72,10 +72,15 @@ class TenantProfileAdmin(admin.ModelAdmin):
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
     """Admin interface for employee model. """
-    
-    list_display = ('tenant', 'full_name', 'work_email', 'phone_number', 'position')
+    list_display = ('tenant', 'id','full_name', 'work_email', 'phone_number', 'role_type', 'get_role_salary', 'created_at', 'updated_at')
     search_fields = ('tenant__name', 'full_name', 'work_email', 'phone_number')
 
+#custom method to get role salary for admin display
+    def get_role_salary(self, obj):
+        if obj.role:
+            return obj.role.salary_role
+        return None
+    get_role_salary.short_description = 'Role Salary'
     def has_add_permission(self, request):
         """
         Disable the add permission for Employee.
@@ -88,7 +93,7 @@ class EmployeeRoleAdmin(admin.ModelAdmin):
     """
     Admin interface for EmployeeRole model.
     """
-    list_display = ('role_type', 'description', 'salary_role')
+    list_display = ('role_type', 'description', 'salary')
     list_filter = ('role_type',)
     search_fields = ('role_type',)
 
