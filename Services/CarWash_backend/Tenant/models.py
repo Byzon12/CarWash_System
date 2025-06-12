@@ -3,6 +3,7 @@ from django.db import models
 from Users.models import User
 from django.utils import timezone
 from django.utils.safestring import mark_safe
+from Users import models as Users
 
 
 
@@ -35,7 +36,7 @@ class Tenant(models.Model):
         ordering = ['name']
 #creating tenant profile model
 class TenantProfile(models.Model):
-    tenant= models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='profiles', null=True, blank=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='profiles', null=True, blank=True)
     username = models.CharField(max_length=150, unique=True)
     first_name = models.CharField(max_length=30, blank=True, null=True)
     last_name = models.CharField(max_length=30, blank=True, null=True)
@@ -75,8 +76,9 @@ class EmployeeRole(models.Model):
         ('manager', 'Manager'),
         ('staff', 'Staff'),
         ('cleaner', 'Cleaner'),
-        ('driver', 'Driver'),
+        ('security', 'Security'),
         ('receptionist', 'Receptionist'),
+      
     ]
 
 
@@ -112,7 +114,8 @@ class Employee(models.Model):
     username = models.CharField(max_length=150, unique=True, blank=True, null=True)
     work_email= models.EmailField(max_length=254, unique=True)
     full_name = models.CharField(max_length=100)
-    role_type = models.ForeignKey(EmployeeRole, on_delete=models.SET_NULL, null=True, blank=True, related_name='employees')
+    
+    role = models.ForeignKey(EmployeeRole, on_delete=models.SET_NULL, null=True, blank=False, related_name='employees')
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     email = models.EmailField(max_length=254, blank=True, null=True)
     is_active = models.BooleanField(default=True)

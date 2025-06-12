@@ -175,11 +175,25 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
             'decimal_places': _('Salary must have up to 2 decimal places.')
         }
     )
+    
+    
 
     class Meta:
         model = EmployeeRole
         fields = ['role_type', 'description', 'salary']
-        
+
+        #method to validate the role type and description
+        def validate(self, attrs):
+            role_type = attrs.get('role_type')
+            description = attrs.get('description')
+
+            if not role_type:
+                raise serializers.ValidationError({'role_type': _('Role type is required.')})
+
+            if not description:
+                raise serializers.ValidationError({'description': _('Description is required.')})
+
+            return attrs
 
     def create(self, validated_data):
         role_type = validated_data.get('role_type')
@@ -192,7 +206,7 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         role_type = validated_data.get('role_type', instance.role_type)
-        description = validated_data.get('description', instance.description)
+        description = validated_data.get('description', getattr(instance, 'description', ''))
         salary = self.salary_map.get(role_type, instance.salary)
 
         instance.role_type = role_type
@@ -263,6 +277,12 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = '__all__'
+        
+    #method to validate the username
+    def validate_username(self, value):
+        if Employee.objects.filter(username=value).exists():
+            raise serializers.ValidationError(_('Username already exists.'))
+        return value
     def validate(self, data):
         """Custom validation to ensure email and phone number are unique."""
         email = data.get('email')

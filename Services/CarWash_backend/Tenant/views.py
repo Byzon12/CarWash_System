@@ -5,7 +5,7 @@ from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .models import Employee, Tenant, TenantProfile
+from .models import Employee, EmployeeRole, Tenant, TenantProfile
 from .serializer import TenantProfileSerializer, TenantLoginSerializer, EmployeeRoleSalarySerializer, CreateEmployeeSerializer
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
@@ -88,25 +88,74 @@ class ListEmployeeView(generics.ListAPIView):
     permission_classes = [AllowAny]  # Allow any user to list employees, you can change this to IsAuthenticated if you want to restrict access
 
     #view to update the salarya of an employee and a sign roles
-class UpdateEmployeeSalaryView(generics.UpdateAPIView):
+class CreateEmployeeSalaryView(generics.CreateAPIView):
     
-    queryset = Employee.objects.all()
+    queryset = EmployeeRole.objects.all()
     serializer_class = EmployeeRoleSalarySerializer
     permission_classes = [AllowAny]  # Allow any user to update employee salary
+# method to create or update the salary of an employee
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        employee_role = serializer.save()
+        return Response(serializer.data, status=201)
+    
+    #class to delete an employee """"
 
-    def perform_update(self, serializer):
-        # Here you can add any additional logic before saving the updated employee
-        serializer.save()  # Save the updated employee instance
     
-    #class to delete an employee
 class DeleteEmployeeView(generics.DestroyAPIView):
-    
-    permission_classes = [IsAuthenticated]  # Allow only authenticated users to delete employees
-    
+
+    permission_classes = [AllowAny]  # Allow only authenticated users to delete employees
+
+
+    #method to get the employee object by primary key and tenant
+    def get_object(self):
+        pk = self.kwargs.get('pk')
+        tenant_id = self.request.headers.get('X-Tenant-ID')  # Assuming tenant ID is passed in the headers
+       
+        try:
+            tenant= Tenant.objects.get(id=tenant_id)
+            return tenant
+        except Tenant.DoesNotExist: 
+            employee = Employee.objects.get(pk=pk, tenant=tenant)
+            return employee
+        except Employee.DoesNotExist:
+            return None
+
     # Method to delete an employee
+
     def delete(self, request, *args, **kwargs):
-        employee = self.get_object(pk=kwargs.get('pk'), tenant=request.tenant)
+        employee = self.get_object()
         if not employee:
             return Response({'detail': _('Employee not found.')}, status=404)
         employee.delete()
         return Response({'detail': _('Employee deleted successfully.')}, status=204)
+
+#class to soft delete employee by deactivating them
+
+# class to deactivate employee
+
+class DeactivateEmployeeView(generics.DestroyAPIView):
+    permission_classes = [AllowAny]# Allow only authenticated users to deactivate employees
+     # Assuming you want to use the same serializer for deactivation
+    def get_object(self):
+        pk = self.kwargs.get('pk')
+        tenant_id = self.request.headers.get('X-Tenant-ID')  # Assuming tenant ID is passed in the headers
+        try:
+            tenant = Tenant.objects.get(id=tenant_id)
+        except Tenant.DoesNotExist:
+            return None
+        try:
+            employee = Employee.objects.get(pk=pk, tenant=tenant)
+            return employee
+        except Employee.DoesNotExist:
+            return None
+
+    def delete(self, request, *args, **kwargs):
+        employee = self.get_object()
+        if not employee:
+            return Response({'detail': _('Employee not found.')}, status=404)
+        # Soft delete by setting is_active to False+++
+        employee.is_active = False
+        employee.save()
+        return Response({'detail': _('Employee deactivated successfully.')}, status=200)

@@ -87,7 +87,8 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    
+    #'django_tenants.middleware.TenantMiddleware' # Middleware for tenant management
+
 ]
 
 ROOT_URLCONF = 'CarWash_backend.urls'
@@ -194,3 +195,6 @@ EMAIL_HOST_USER = 'byzoneochieng@gmail.com'
 EMAIL_HOST_PASSWORD = 'mxvxvpwovnlfsvgq'  # Use App Password if 2FA is enabled
 # Default from email
 DEFAULT_FROM_EMAIL = 'byzoneochieng@gmail.com'
+
+
+# 'django_tenants.middleware.TenantMiddleware' can be added to the main MIDDLEWARE list above if needed.

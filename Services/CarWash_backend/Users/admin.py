@@ -44,7 +44,7 @@ class TenantAdmin(admin.ModelAdmin):
     """
     Admin interface for Tenant model.
     """
-    list_display = ('name', 'contact_email', 'contact_phone', 'created_at', 'updated_at')
+    list_display = ('name', 'id', 'contact_email', 'contact_phone', 'created_at', 'updated_at')
     search_fields = ('name', 'contact_email', 'contact_phone')
     list_filter = ('created_at', 'updated_at')
     
@@ -72,15 +72,15 @@ class TenantProfileAdmin(admin.ModelAdmin):
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
     """Admin interface for employee model. """
-    list_display = ('tenant', 'id','full_name', 'work_email', 'phone_number', 'role_type', 'get_role_salary', 'created_at', 'updated_at')
+    list_display = ('tenant', 'id','full_name', 'work_email', 'phone_number', 'role', 'get_role_salary', 'created_at', 'updated_at')
     search_fields = ('tenant__name', 'full_name', 'work_email', 'phone_number')
 
 #custom method to get role salary for admin display
     def get_role_salary(self, obj):
         if obj.role:
-            return obj.role.salary_role
+            return obj.role.salary
         return None
-    get_role_salary.short_description = 'Role Salary'
+    get_role_salary.short_description = 'Salary'
     def has_add_permission(self, request):
         """
         Disable the add permission for Employee.
