@@ -13,3 +13,4 @@ django-jazzmin
 pillow
 django-mongodb-backend
 django-softdelete
+django-tenants

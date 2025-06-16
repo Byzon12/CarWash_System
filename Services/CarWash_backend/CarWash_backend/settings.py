@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'Users.apps.UsersConfig',  # Custom user app
     'knox',  # Django REST framework authentication
     'Tenant.apps.TenantConfig',  # Tenant management app
+    'Location.apps.LocationConfig',  # Location management app
 ]
 
 MIDDLEWARE = [
@@ -87,7 +88,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    #'django_tenants.middleware.TenantMiddleware' # Middleware for tenant management
+  #  'django_tenants.middleware.TenantMiddleware' # Middleware for tenant management
 
 ]
 
@@ -103,7 +104,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-            ],
+                            ],
         },
     },
 ]
@@ -116,7 +117,8 @@ WSGI_APPLICATION = 'CarWash_backend.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+    #    'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants for multi-tenancy
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',  # Use
         'NAME': 'Carwash_db',
         'USER': 'postgres',
         # Use your actual database password here

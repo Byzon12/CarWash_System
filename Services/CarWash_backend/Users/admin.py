@@ -1,6 +1,8 @@
 
 from django.contrib import admin
 from Tenant.models import EmployeeRole, TenantProfile,Tenant, Employee,EmployeeRole
+from Location.models import Location, Service, LocationService
+
 
 
 from .models import CustomerProfile, AuditLog
@@ -102,3 +104,83 @@ class EmployeeRoleAdmin(admin.ModelAdmin):
         Disable the add permission for EmployeeRole.
         """
         return True
+    
+    
+# Registering Location model in the admin interface
+@admin.register(Location)
+class LocationAdmin(admin.ModelAdmin):
+    """
+    Admin interface for Location model.
+    """
+    list_display = ('name', 'address', 'latitude', 'longitude', 'contact_number', 'email', 'created_at', 'updated_at','id')
+    search_fields = ('name', 'address', 'contact_number', 'email')
+    list_filter = ('created_at', 'updated_at')
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for Location.
+        """
+        return False
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for Location.
+        """
+        return False
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for Location.
+        """
+        return False
+# Registering services in the admin interface
+
+@admin.register(Service)
+class ServiceAdmin(admin.ModelAdmin):
+    """
+    Admin interface for Service model.
+    """
+    list_display = ('name', 'description')
+    
+    
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for Service.
+        """
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for Service.
+        """
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for Service.
+        """
+        return True
+
+# Registering packages in the admin interface
+@admin.register(LocationService)
+class LocationServiceAdmin(admin.ModelAdmin):
+    """
+    Admin interface for LocationService model.
+    """
+    list_display = ('location', 'name', 'price', 'duration', 'description')
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for LocationService.
+        """
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for LocationService.
+        """
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for Package.
+        """
+        return False
