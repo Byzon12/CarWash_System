@@ -137,7 +137,7 @@ class ServiceAdmin(admin.ModelAdmin):
     """
     Admin interface for Service model.
     """
-    list_display = ('name', 'description')
+    list_display = ('name', 'description','id')
     
     
 
@@ -145,19 +145,19 @@ class ServiceAdmin(admin.ModelAdmin):
         """
         Disable the add permission for Service.
         """
-        return True
+        return False
 
     def has_change_permission(self, request, obj=None):
         """
         Disable the change permission for Service.
         """
-        return True
+        return False
 
     def has_delete_permission(self, request, obj=None):
         """
         Disable the delete permission for Service.
         """
-        return True
+        return False
 
 # Registering packages in the admin interface
 @admin.register(LocationService)
@@ -165,7 +165,7 @@ class LocationServiceAdmin(admin.ModelAdmin):
     """
     Admin interface for LocationService model.
     """
-    list_display = ('location', 'name', 'price', 'duration', 'description')
+    list_display = ('location', 'name', 'price', 'duration', 'description', 'id')
 
     def has_add_permission(self, request):
         """

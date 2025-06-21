@@ -111,6 +111,7 @@ class Employee(models.Model):
     """Model representing an employee of a tenant.
     An employee is associated with only one tenant and has their own portal profile."""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='employees')
+    location = models.ForeignKey('Location.Location', on_delete=models.CASCADE, related_name='employees', null=True, blank=True)
     username = models.CharField(max_length=150, unique=True, blank=True, null=True)
     work_email= models.EmailField(max_length=254, unique=True)
     full_name = models.CharField(max_length=100)

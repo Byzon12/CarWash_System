@@ -1,5 +1,7 @@
 
 
+from importlib.util import source_from_cache
+from os import read
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
@@ -112,6 +114,8 @@ class ServiceSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """ Validate the data before creating a new service.
         """
+        
+        
         if Service.objects.filter(name=data.get('name')).exists():
             raise serializers.ValidationError(_("Service with this name already exists."))
         return data
@@ -120,3 +124,105 @@ class ServiceSerializer(serializers.ModelSerializer):
         """
         service = Service.objects.create(**validated_data)
         return service
+    
+    
+    #class serializer to handle service update
+    
+    class ServiceUpdateSerializer(serializers.ModelSerializer):
+        """
+        Serializer for updating an existing service.
+        """
+        name = serializers.CharField(max_length=255, required=False, allow_blank=True, help_text=_("Name of the service"))
+        price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True, help_text=_("Price of the service"))
+        description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service"))
+
+        class Meta:
+            model = Service
+            fields = ["name","price", "description"]
+            read_only_fields = ["id"]
+
+        def validate(self, data):
+            """ Validate the data before updating an existing service.
+            """
+            instance = self.instance
+            if not instance:
+                raise serializers.ValidationError(_("Service does not exist."))
+            if 'name' in data and Service.objects.filter(name=data['name']).exclude(id=instance.id).exists():
+                raise serializers.ValidationError(_("Service with this name already exists."))
+            return data
+
+        def update(self, instance, validated_data):
+            """ Update an existing service instance.
+            """
+            instance.name = validated_data.get('name', instance.name)
+            instance.price = validated_data.get('price', instance.price)
+            instance.description = validated_data.get('description', instance.description)
+            
+            instance.save()
+            
+            return instance
+        
+        
+# class serializer to handle location service
+class LocationServiceSerializer(serializers.ModelSerializer):
+    """to handle the creation of a location service package."""
+    
+    location_name = serializers.CharField(source='location.name', read_only=True, help_text=_("Name of the location"))
+    service_names = serializers.SerializerMethodField()
+    service = serializers.PrimaryKeyRelatedField(
+        queryset=Service.objects.all(),
+        many=True,
+        help_text=_("List of services offered at the location")
+    )
+    
+    service_details= ServiceSerializer(
+        source='service',
+        many=True,
+        read_only=True
+    )
+    
+    price = serializers.SerializerMethodField(help_text=_("Total price of the package based on the services included"), read_only=True)
+
+    class Meta:
+        model = LocationService
+        fields = ['id',"location",'service', "name", "duration", "description", "price", "location_name", 'service_names', 'service_details']
+        read_only_fields = ["id"]
+
+    def get_service_names(self, obj):
+        """Get the names of the services offered at the location."""
+        return [service.name for service in obj.service.all()]
+    def get_price(self, obj):
+        return obj.price if obj.price is not None else 0.00
+    
+    def validate(self, data):
+        location = data.get('location') or self.instance.location if self.instance else None
+        if not location or not isinstance(location, Location):
+            raise serializers.ValidationError(_("Valid location is required."))
+        name = data.get('name') or self.instance.name if self.instance else None
+        if not name:
+            raise serializers.ValidationError(_("Name is required."))
+        if LocationService.objects.filter(name=name, location=location).exclude(id=self.instance.id if self.instance else None).exists():
+            raise serializers.ValidationError(_("Location service with this name already exists for this location."))
+        return data
+
+    def create(self, validated_data):
+        """Create a new location service package instance."""
+        service = validated_data.pop('service')
+        location_service = LocationService.objects.create(**validated_data)
+        location_service.service.set(service)
+        return location_service
+    
+    def update(self, instance, validated_data):
+        """Update an existing location service package instance."""
+        instance.name = validated_data.get('name', instance.name)
+        instance.duration = validated_data.get('duration', instance.duration)
+        instance.description = validated_data.get('description', instance.description)
+       
+        
+        if 'service' in validated_data:
+            services = validated_data.pop('service')
+            instance.service.set(services)
+        
+        instance.save()
+        
+        return instance
