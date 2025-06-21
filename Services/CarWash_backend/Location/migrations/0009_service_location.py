@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='service',
             name='location',
-            field=models.ForeignKey(default=1, on_delete=django.db.models.deletion.CASCADE, related_name='services', to='Location.location'),
+            field=models.ForeignKey(default=10, on_delete=django.db.models.deletion.CASCADE, related_name='services', to='Location.location'),
             preserve_default=False,
         ),
     ]

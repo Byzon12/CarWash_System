@@ -22,9 +22,14 @@ class Tenant(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def is_authenticated(self):
+        """Check if the tenant is authenticated."""
+        return True
     def __str__(self):
         return self.name
-     #hash password before saving
+
+    #hash password before saving
     def save(self, *args, **kwargs):
         if self.password:
             self.password = make_password(self.password)

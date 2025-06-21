@@ -37,10 +37,10 @@ ALLOWED_HOSTS = ["*"]  # Allow all hosts for development; change in production
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
+        "Tenant.Authentication.TenantAuthentication",  # Custom tenant authentication
+        "knox.auth.TokenAuthentication",  # Knox authentication
         "rest_framework_simplejwt.authentication.JWTAuthentication",
     ),
-     'DEFAULT_AUTHENTICATION_CLASSES': ('knox.auth.TokenAuthentication',),
-     
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
@@ -53,6 +53,9 @@ SIMPLE_JWT= {
     "BLACKLIST_AFTER_ROTATION": True,  # Blacklist old refresh tokens after rotation
     # Refresh token lifetime  
 }
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
 
 
 
@@ -78,6 +81,7 @@ INSTALLED_APPS = [
     'knox',  # Django REST framework authentication
     'Tenant.apps.TenantConfig',  # Tenant management app
     'Location.apps.LocationConfig',  # Location management app
+    'rest_framework_simplejwt.token_blacklist',  # Token blacklist for JWT
 ]
 
 MIDDLEWARE = [

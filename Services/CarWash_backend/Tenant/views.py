@@ -1,5 +1,7 @@
 from ast import Is
 from tkinter import E
+import token
+from urllib import request
 from django.shortcuts import render
 from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
@@ -22,8 +24,8 @@ class TenantLoginView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
       
         tenant = serializer.get_tenant()
-      
-        refresh = RefreshToken.for_user(tenant)
+        refresh = RefreshToken()
+        refresh['user_id'] = str(tenant.id)  # Set the user ID in the refresh token
         return Response({
             'token': str(refresh),
             'access': str(refresh.access_token),
@@ -33,10 +35,15 @@ class TenantLoginView(generics.GenericAPIView):
 class TenantLogoutView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     def post(self, request, *args, **kwargs):
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response({'detail': _('Refresh token is required for logout.')}, status=400)
 
         try:
-            # Attempt to blacklist the token
-            RefreshToken.for_user(request.user).blacklist()
+            
+            token = RefreshToken(refresh_token)
+            # Blacklist the token
+            token.blacklist()
             return Response({'detail': _('Successfully logged out.')}, status=200)
         except TokenError:
             return Response({'detail': _('Token is already blacklisted or invalid.')}, status=400)
@@ -51,22 +58,21 @@ class TenantProfileView(generics.RetrieveUpdateAPIView):
   
     serializer_class = TenantProfileSerializer
     permission_classes = [IsAuthenticated]
+   # queryset = TenantProfile.objects.all()  # Assuming TenantProfile has a ForeignKey to Tenant
+
 
     def get_queryset(self):
         #only allow the tenant to access their own profile
-         tenant = self.request.tenant if hasattr(self.request, 'tenant') else None
-         return TenantProfile.objects.filter(tenant=tenant)
-     
+         tenant = self.request.user
+         return TenantProfile.objects.filter(tenant=self.request.user)  # Assuming TenantProfile has a ForeignKey to Tenant
+
      # method to return the exting  tenant profile or  raise an error if it does not exist
     def get_object(self):
         queryset = self.get_queryset()
         return queryset.first()# assuming there is only one profile per tenant
-    def perform_update(self, serializer):
-        """Override the perform_update method to set the tenant."""
-        tenant = self.request.tenant if hasattr(self.request, 'tenant') else None
-        if not tenant:
-            raise ValidationError(_('Tenant must be set.'))
-        serializer.save(tenant=tenant)
+  
+
+  
 
  # api view to handle employee creation
  
@@ -100,7 +106,7 @@ class CreateEmployeeSalaryView(generics.CreateAPIView):
         employee_role = serializer.save()
         return Response(serializer.data, status=201)
     
-    #class to delete an employee """"
+    #class to delete an employee 
 
     
 class DeleteEmployeeView(generics.DestroyAPIView):

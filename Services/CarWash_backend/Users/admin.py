@@ -58,7 +58,7 @@ class TenantProfileAdmin(admin.ModelAdmin):
     """
     Admin interface for TenantProfile model.
     """
-    list_display = ('tenant','business_name', 'phone_number', 'created_at', 'updated_at', 'logo')
+    list_display = ('tenant','business_name', 'phone_number', 'created_at', 'updated_at', 'logo','image_tag')
     search_fields = ('business_name', 'email', 'phone_number')
     list_filter = ('created_at', 'updated_at')
     
@@ -66,6 +66,12 @@ class TenantProfileAdmin(admin.ModelAdmin):
         """
         Disable the add permission for TenantProfile.
         """
+        return False
+    def has_change_permission(self, request, obj = ...):
+        """Disable the change permission for TenantProfile. """
+        return False
+    def has_delete_permission(self, request, obj = ...):
+        """Disable the delete permission for TenantProfile. """
         return False
 
 
