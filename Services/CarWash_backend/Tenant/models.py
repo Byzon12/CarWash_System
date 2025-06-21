@@ -12,6 +12,7 @@ class Tenant(models.Model):
     #tenant is not associated with a user, it is a separate entity
     """Model representing a tenant in the system.
     A tenant can be a business or organization that uses the application."""
+    user = models.OneToOneField(User, on_delete=models.SET_NULL, related_name='tenant_profile', null=True, blank=True)
     name = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=128, blank=True, null=True)
     description = models.TextField(blank=True, null=True)

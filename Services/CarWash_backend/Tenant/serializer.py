@@ -11,7 +11,84 @@ from django.db.models import Q
 from Tenant.models import Employee, TenantProfile, Tenant, EmployeeRole
 from django.contrib.auth.hashers import check_password
 
+
+# TenantProfile Serializer
+class TenantProfileSerializer(serializers.ModelSerializer):
+    tenant = serializers.StringRelatedField(read_only=True)
+    name = serializers.CharField(source='tenant.name', read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True)
+
+    class Meta:
+        model = TenantProfile
+        fields = '__all__'
+     
+    # method to validate bussiness email, bussiness_name and phone number
+
+    def validate(self, data):
+        """custom validation to ensure business email, business name and phone number are valid and unique."""
+        phone_number = data.get('phone_number')
+        # validate bussiness email if it ends with @tenant.com
+        business_email = data.get('bussiness_email')
+        if business_email and not business_email.endswith('@tenant.com'):
+            raise serializers.ValidationError({
+                'bussiness_email': _('Business email must be a valid tenant email.')
+            })
+        # validate phone number if it is not empty and does not start with +254
+        if phone_number and not phone_number.startswith('+254'):
+            raise serializers.ValidationError({
+                'phone_number':( _('Phone number must be in international format. must start with +254.'))
+            })
+      
+        return data
+
+    # validate if the business name is already taken 
+    # this is to ensure that the business name is unique across all tenant profiles
+    # during update of tenant profile, we do not check if the business name is already taken
+    
+    def validate_business_name(self, value):
+        """Validate that the business name is unique. during creation of tenant profile. but not during update."""
+        if self.instance:
+            # if no change, return the existing value
+            if self.instance.business_name == value:
+            # No change in business name, so we can safely return the existing value
+                return value
+        # Check if the business name already exists in other tenant profiles
+        if TenantProfile.objects.filter(business_name__iexact=value).exclude(pk=self.instance.pk if self.instance else None).exists():
+            raise serializers.ValidationError(_('Business name already exists.'))
+        # This check is only performed during creation of tenant profile
+        
+            return value
+        if TenantProfile.objects.filter(business_name__iexact=value).exists():
+            raise serializers.ValidationError(_('Business name already exists.'))
+        return value
+
+# perform update method to ensure that the tenant profile is updated correctly
+   
+    def create(self, validated_data):
+        """Create a new tenant profile instance."""
+        request = self.context.get('request')
+        tenant = request.tenant if hasattr(request, 'tenant') else None
+        if not tenant:
+            raise ValidationError(_('Tenant must be set.'))
+        validated_data['tenant'] = tenant
+        return super().create(validated_data)
+ #serializer method to handle  tenant existing profile update
+    def update(self, instance, validated_data):
+        """Update an existing tenant profile instance."""
+        instance.business_name = validated_data.get('business_name', instance.business_name)
+        instance.business_email = validated_data.get('business_email', instance.business_email)
+        instance.username = validated_data.get('username', instance.username)
+        instance.first_name = validated_data.get('first_name', instance.first_name)
+        instance.last_name = validated_data.get('last_name', instance.last_name)
+        instance.logo = validated_data.get('logo', instance.logo)
+        instance.phone_number = validated_data.get('phone_number', instance.phone_number)
+        instance.address = validated_data.get('address', instance.address)
+        instance.save()
+        return instance
+
 # serializer to handle Tenant login with the username and password
+
 class TenantLoginSerializer(serializers.Serializer):
     username = serializers.CharField(
         max_length=150,
@@ -70,64 +147,14 @@ class TenantLoginSerializer(serializers.Serializer):
                         'updated_at': self.validated_data['tenant_profile'].updated_at
                     }
                 }"""
-        return f"Tenant Profile for {tenant.name} with ID {tenant.id}"
+        return f"Tenant Profile for {tenant.name}"
 
     
     def get_tenant(self):
        return self.validated_data.get('tenant', None)
 
     # method to return the tenant profile
-# TenantProfile Serializer
-class TenantProfileSerializer(serializers.ModelSerializer):
-    tenant = serializers.StringRelatedField(read_only=True)
-    name = serializers.CharField(source='tenant.name', read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
-    updated_at = serializers.DateTimeField(read_only=True)
 
-    class Meta:
-        model = TenantProfile
-        fields = '__all__'
-     
-    # method to validate bussiness email, bussiness_name and phone number
-
-    def validate(self, data):
-        """custom validation to ensure business email, business name and phone number are valid and unique."""
-        phone_number = data.get('phone_number')
-        # validate bussiness email if it ends with @tenant.com
-        business_email = data.get('bussiness_email')
-        if business_email and not business_email.endswith('@tenant.com'):
-            raise serializers.ValidationError({
-                'bussiness_email': _('Business email must be a valid tenant email.')
-            })
-        # validate phone number if it is not empty and does not start with +254
-        if phone_number and not phone_number.startswith('+254'):
-            raise serializers.ValidationError({
-                'phone_number':( _('Phone number must be in international format. must start with +254.'))
-            })
-      
-        return data
-
-    # validate if the business name is already taken
-    def validate_business_name(self, value):
-        if TenantProfile.objects.filter(business_name__iexact=value).exists():
-            raise serializers.ValidationError(_('Business name already exists.'))
-        return value
-
-# perform update method to ensure that the tenant profile is updated correctly
-    def update(self, instance, validated_data):# -> Any:
-        """Update the tenant profile instance with validated data."""
-        # Update the tenant profile instance with the validated data
-        validated_data['tenant'] = self.context.get('request').tenant if hasattr(self.context.get('request'), 'tenant') else None
-        return super().update(instance, validated_data)
-
-    def create(self, validated_data):
-        """Create a new tenant profile instance."""
-        request = self.context.get('request')
-        tenant = request.tenant if hasattr(request, 'tenant') else None
-        if not tenant:
-            raise ValidationError(_('Tenant must be set.'))
-        validated_data['tenant'] = tenant
-        return super().create(validated_data)
 
 
 

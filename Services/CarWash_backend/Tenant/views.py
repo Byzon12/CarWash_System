@@ -12,6 +12,7 @@ from .serializer import TenantProfileSerializer, TenantLoginSerializer, Employee
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken,TokenError  # This import is used to generate JWT tokens for user authentication
+from .email import send_tenant_profile_update_email
 
 
 #api view to handle tenant login with the username and password
@@ -63,19 +64,52 @@ class TenantProfileView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         #only allow the tenant to access their own profile
-         tenant = self.request.user
-         return TenantProfile.objects.filter(tenant=self.request.user)  # Assuming TenantProfile has a ForeignKey to Tenant
+         tenant = self.request.user  # Assuming you have set the tenant in the request object
+         return TenantProfile.objects.filter(tenant=tenant)  # Assuming TenantProfile has a ForeignKey to Tenant
 
      # method to return the exting  tenant profile or  raise an error if it does not exist
     def get_object(self):
         queryset = self.get_queryset()
         return queryset.first()# assuming there is only one profile per tenant
-  
 
-  
+#class to handle tenant profile retrieval and update
+class TenantProfileDetailsView(generics.RetrieveUpdateAPIView):
+    serializer_class = TenantProfileSerializer
+    permission_classes = [IsAuthenticated]  # Only authenticated users can access this view
+    # Assuming TenantProfile has a ForeignKey to Tenant
+    queryset = TenantProfile.objects.all()  # Assuming TenantProfile has a ForeignKey to Tenant
 
- # api view to handle employee creation
- 
+    def get_object(self):
+        # get tenant based on the request user
+        tenant = self.request.user  # Assuming you have set the tenant in the request object
+        if not tenant or not isinstance(tenant, Tenant):
+            raise ValidationError( _('Tenant must be authenticated.'))
+        try:
+            return TenantProfile.objects.get(tenant=tenant)
+        except TenantProfile.DoesNotExist:
+            raise ValidationError(_('Tenant profile does not exist.'))
+
+    # method to retrive the tenant profile details
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance:
+            return Response({'detail': _('Tenant profile not found.')}, status=404) 
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+    #method to update the tenant profile details
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not instance:
+            return Response({'detail': _('Tenant profile not found.')}, status=404)
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        # send an email to the tenant profile email
+        send_tenant_profile_update_email(instance)
+        return Response(serializer.data)
+
+# api view to handle employee creation
+
 class CreateEmployeeView(generics.CreateAPIView):
     serializer_class = CreateEmployeeSerializer
     permission_classes= [AllowAny]  # Allow any user to create an employee, you can change this to IsAuthenticated if you want to restrict access
