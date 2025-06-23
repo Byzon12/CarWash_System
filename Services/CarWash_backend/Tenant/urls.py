@@ -1,6 +1,9 @@
+
+from django.conf import settings
 from django.urls import path
+from django.conf.urls.static import static
 #from .views import TenantProfileListCreateView
-from .views import TenantProfileView, TenantLoginView, TenantLogoutView,TenantProfileDetailsView ,CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView, DeactivateEmployeeView
+from .views import TenantProfileView, TenantLoginView, TenantLogoutView,TenantProfileDetailsView ,CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView, DeactivateEmployeeView,ActivateEmployeeView
 
 urlpatterns = [
   path('login/', TenantLoginView.as_view(), name='tenant-login-view'),
@@ -18,7 +21,10 @@ urlpatterns = [
   #deleting an employee 
  path('employees/delete/<int:pk>/', DeleteEmployeeView.as_view(), name='delete-employee-view'),
   path('employees/deactivate/<int:pk>/', DeactivateEmployeeView.as_view(), name='deactivate-employee-view'),
-  # In your urls.py
-#path('employee/<int:pk>/delete/', DeleteEmployeeView.as_view(), name='delete_employee')
+  path('employees/activate/<int:pk>/', ActivateEmployeeView.as_view(), name='activate-employee-view'),
 
-]
+] 
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

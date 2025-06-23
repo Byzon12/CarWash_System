@@ -69,6 +69,7 @@ class LocationService(models.Model):
         Calculate the total price of the package based on the services included.
         """
         return sum(service.price for service in self.service.all())
+    
 
     def __str__(self):
         return self.name

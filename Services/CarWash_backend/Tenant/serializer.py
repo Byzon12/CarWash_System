@@ -18,6 +18,7 @@ class TenantProfileSerializer(serializers.ModelSerializer):
     name = serializers.CharField(source='tenant.name', read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
+    image_tag = serializers.ReadOnlyField(read_only=True)
 
     class Meta:
         model = TenantProfile
@@ -304,6 +305,7 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = '__all__'
+        read_only_fields = ('tenant', 'created_at', 'updated_at', 'is_active')
         
     #method to validate the username
     def validate_username(self, value):
@@ -328,6 +330,7 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         employee = Employee.objects.create(**validated_data)
 
         return employee
+    
         #method to get the role salary of an employee
     
     def get_role_salary(self, obj):

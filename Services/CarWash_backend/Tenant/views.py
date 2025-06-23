@@ -13,7 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken,TokenError  # This import is used to generate JWT tokens for user authentication
 from .email import send_tenant_profile_update_email
-
+from Location.models import Location, Service, LocationService
 
 #api view to handle tenant login with the username and password
 class TenantLoginView(generics.GenericAPIView):
@@ -112,51 +112,56 @@ class TenantProfileDetailsView(generics.RetrieveUpdateAPIView):
 
 class CreateEmployeeView(generics.CreateAPIView):
     serializer_class = CreateEmployeeSerializer
-    permission_classes= [AllowAny]  # Allow any user to create an employee, you can change this to IsAuthenticated if you want to restrict access
+    permission_classes= [IsAuthenticated]  # Allow only authenticated users to create an employee
      # method to create an employee
 
-    def post(self, request):
-        serializers= self.get_serializer(data= request.data)
-        serializers.is_valid(raise_exception=True)
-        serializers.save()
-        return Response(serializers.data, status=201)
+    def perform_create(self, serializer):
+        tenant = self.request.user  # Assuming the user is a tenant
+        serializer.save(tenant=tenant)  # Save the tenant in the employee instance
 
 #class to list all employees of a tenant
 class ListEmployeeView(generics.ListAPIView):
-    queryset = Employee.objects.all()
     serializer_class = CreateEmployeeSerializer
-    permission_classes = [AllowAny]  # Allow any user to list employees, you can change this to IsAuthenticated if you want to restrict access
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to list employees
 
-    #view to update the salarya of an employee and a sign roles
+    def get_queryset(self):
+        tenant = self.request.user  # Assuming the user is a tenant
+        return Employee.objects.filter(tenant=tenant)  # Filter employees by tenant
+
+    #view to to retrieve, create and update the salary of an employee and a sign roles
 class CreateEmployeeSalaryView(generics.CreateAPIView):
-    
-    queryset = EmployeeRole.objects.all()
+
+    """
+    This view handles the creation of employee roles and their associated salaries.
+    It allows authenticated tenants to create or update employee roles and salaries.
+    """
     serializer_class = EmployeeRoleSalarySerializer
-    permission_classes = [AllowAny]  # Allow any user to update employee salary
-# method to create or update the salary of an employee
-    def post(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        employee_role = serializer.save()
-        return Response(serializer.data, status=201)
-    
-    #class to delete an employee 
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to update employee salary
+
+    def get_queryset(self):
+        tenant = self.request.user  # Assuming the user is a tenant
+        return EmployeeRole.objects.filter(tenant=tenant)  # Filter employee roles by tenant
+
+    def perform_create(self, serializer):
+        tenant = self.request.user  # Assuming the user is a tenant
+        location = Location.objects.get(pk=self.request.data.get('location'))  # Get the location from the request data
+        serializer.save(tenant=tenant, location=location)  # Save the tenant in the employee role instance
+
+    #class to delete an employee
 
     
 class DeleteEmployeeView(generics.DestroyAPIView):
 
-    permission_classes = [AllowAny]  # Allow only authenticated users to delete employees
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to delete employees
 
 
     #method to get the employee object by primary key and tenant
     def get_object(self):
         pk = self.kwargs.get('pk')
-        tenant_id = self.request.headers.get('X-Tenant-ID')  # Assuming tenant ID is passed in the headers
+        tenant = self.request.user  # Assuming the user is a tenant
        
         try:
-            tenant= Tenant.objects.get(id=tenant_id)
-            return tenant
-        except Tenant.DoesNotExist: 
+            
             employee = Employee.objects.get(pk=pk, tenant=tenant)
             return employee
         except Employee.DoesNotExist:
@@ -180,11 +185,7 @@ class DeactivateEmployeeView(generics.DestroyAPIView):
      # Assuming you want to use the same serializer for deactivation
     def get_object(self):
         pk = self.kwargs.get('pk')
-        tenant_id = self.request.headers.get('X-Tenant-ID')  # Assuming tenant ID is passed in the headers
-        try:
-            tenant = Tenant.objects.get(id=tenant_id)
-        except Tenant.DoesNotExist:
-            return None
+        tenant = self.request.user  # Assuming the user is a tenant
         try:
             employee = Employee.objects.get(pk=pk, tenant=tenant)
             return employee
@@ -199,3 +200,27 @@ class DeactivateEmployeeView(generics.DestroyAPIView):
         employee.is_active = False
         employee.save()
         return Response({'detail': _('Employee deactivated successfully.')}, status=200)
+    
+    
+#class to handle employee activation
+
+class ActivateEmployeeView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to activate employees
+
+    def get_object(self):
+        pk = self.kwargs.get('pk')
+        tenant = self.request.user  # Assuming the user is a tenant
+        try:
+            employee = Employee.objects.get(pk=pk, tenant=tenant)
+            return employee
+        except Employee.DoesNotExist:
+            return None
+
+    def put(self, request, *args, **kwargs):
+        employee = self.get_object()
+        if not employee:
+            return Response({'detail': _('Employee not found.')}, status=404)
+        # Activate the employee by setting is_active to True
+        employee.is_active = True
+        employee.save()
+        return Response({'detail': _('Employee activated successfully.')}, status=200)

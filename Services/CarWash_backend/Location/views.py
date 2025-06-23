@@ -18,27 +18,19 @@ class LocationCreateView(generics.CreateAPIView):
     """
     API view to create a new location for a tenant.
     """
-    permission_classes = [AllowAny]  # Allow any user to create a location
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to create a location
     serializer_class = LocationSerializer
     queryset = Location.objects.all()
-    def get_object(self):
-        """to get the tenant from the header
-        tenant_id = self.request.headers.get('Tenant-ID')
-        if not tenant_id:
-            raise ValidationError(_("Tenant-ID header is required."))
-        try:
-            tenant = Tenant.objects.get(id=tenant_id)
-        except Tenant.DoesNotExist:
-            raise ValidationError(_("Tenant with this ID does not exist."))
-        return tenant"""
-    def create(self, request, *args, **kwargs):
-        """        Handle the creation of a new location.
-        """ 
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=201, headers=headers)
+    # performs the creation of a new location
+    #allow only authenticated login tenant to create a location
+    def perform_create(self, serializer):
+        """Handle the creation of a new location."""
+        #assigning tenant as the current login user
+        tenant = self.request.user # assuming the user is a tenant
+        if not tenant.is_authenticated:
+            raise AuthenticationError(_("You must be logged in to create a location."))
+        serializer.save(tenant=tenant)  # Save the location with the tenant as the owner
+        
         
     #view to handle Location update based on tenant
 class LocationUpdateView(generics.UpdateAPIView):
@@ -58,7 +50,8 @@ class LocationUpdateView(generics.UpdateAPIView):
 
     def update(self, request, *args, **kwargs):
         """Handle the update of an existing location."""
-        instance = self.tenant = self.request.headers.get('Tenant-ID')
+        instance = self.tenant = self.request.user
+    
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -75,11 +68,11 @@ class LocationDeleteView(generics.DestroyAPIView):
     def get_object(self):
         """Get the location object based on the provided ID."""
         pk=self.kwargs.get('pk')
-        tenant_id = self.request.headers.get('Tenant-ID')
-        if not tenant_id:
+        tenant = self.request.user
+        if not tenant:
             raise serializers.ValidationError(_("Tenant-ID header is required."))
         try:
-            tenant = Tenant.objects.get(id=tenant_id)
+            tenant = Tenant.objects.get(id=tenant.id)
         except Tenant.DoesNotExist:
             raise serializers.ValidationError(_("Tenant with this ID does not exist."))
         try:

@@ -1,5 +1,6 @@
 from django.contrib.auth.hashers import make_password
 from django.db import models
+from test.test_reprlib import r
 from Users.models import User
 from django.utils import timezone
 from django.utils.safestring import mark_safe
@@ -57,9 +58,8 @@ class TenantProfile(models.Model):
     def image_tag(self):
         if self.logo:
             return mark_safe(f'<img src="{self.logo.url}" width="50" height="50" />')
-        return "No Logo"
-        return "No Logo"
-   
+        return "No Image"
+
     def save(self, *args, **kwargs):
         """Override save method to set the tenant if not already set."""
         if not self.tenant:
@@ -117,7 +117,7 @@ class Employee(models.Model):
     """Model representing an employee of a tenant.
     An employee is associated with only one tenant and has their own portal profile."""
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='employees')
-    location = models.ForeignKey('Location.Location', on_delete=models.CASCADE, related_name='employees', null=True, blank=True)
+    location = models.ForeignKey('Location.Location', on_delete=models.SET_NULL, related_name='employees', null=True, blank=True)
     username = models.CharField(max_length=150, unique=True, blank=True, null=True)
     work_email= models.EmailField(max_length=254, unique=True)
     full_name = models.CharField(max_length=100)
@@ -128,6 +128,17 @@ class Employee(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    
+    # clean method to ensure location is set to the employee's tenant location
+    def clean(self):
+        #ensure that the location belongs to the same tenanta as the employee
+        if self.location and self.tenant:
+            if self.location.tenant != self.tenant:
+                raise ValueError("Location must belong to the same tenant as the employee.")
+    def save(self, *args, **kwargs):
+        self.clean()  # Call the clean method to validate the location
+        super().save(*args, **kwargs)  # Call the parent save method    
 
     def __str__(self):
         return f"{self.full_name} - {self.tenant.name}"

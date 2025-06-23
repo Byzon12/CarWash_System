@@ -2,6 +2,7 @@
 from django.contrib import admin
 from Tenant.models import EmployeeRole, TenantProfile,Tenant, Employee,EmployeeRole
 from Location.models import Location, Service, LocationService
+from booking.models import Booking
 
 
 
@@ -58,7 +59,7 @@ class TenantProfileAdmin(admin.ModelAdmin):
     """
     Admin interface for TenantProfile model.
     """
-    list_display = ('tenant','business_name', 'phone_number', 'created_at', 'updated_at', 'logo','image_tag')
+    list_display = ('tenant','business_name', 'phone_number', 'created_at', 'updated_at','image_tag')
     search_fields = ('business_name', 'email', 'phone_number')
     list_filter = ('created_at', 'updated_at')
     
@@ -69,10 +70,10 @@ class TenantProfileAdmin(admin.ModelAdmin):
         return False
     def has_change_permission(self, request, obj = ...):
         """Disable the change permission for TenantProfile. """
-        return False
+        return  False
     def has_delete_permission(self, request, obj = ...):
         """Disable the delete permission for TenantProfile. """
-        return False
+        return   False
 
 
 #employee admin
@@ -80,7 +81,7 @@ class TenantProfileAdmin(admin.ModelAdmin):
 @admin.register(Employee)
 class EmployeeAdmin(admin.ModelAdmin):
     """Admin interface for employee model. """
-    list_display = ('tenant', 'id','full_name', 'work_email', 'phone_number', 'role', 'get_role_salary', 'created_at', 'updated_at')
+    list_display = ('id','full_name', 'work_email', 'phone_number', 'role', 'get_role_salary', 'created_at', 'updated_at')
     search_fields = ('tenant__name', 'full_name', 'work_email', 'phone_number')
 
 #custom method to get role salary for admin display
@@ -93,9 +94,20 @@ class EmployeeAdmin(admin.ModelAdmin):
         """
         Disable the add permission for Employee.
         """
-        return True
+        return False  # Allow adding employees
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for Employee.
+        """
+        return False
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for Employee.
+        """
+        return False
 
     #admin site to register employee salary and roles
+    
 @admin.register(EmployeeRole)
 class EmployeeRoleAdmin(admin.ModelAdmin):
     """
@@ -109,7 +121,7 @@ class EmployeeRoleAdmin(admin.ModelAdmin):
         """
         Disable the add permission for EmployeeRole.
         """
-        return True
+        return  False
     
     
 # Registering Location model in the admin interface
@@ -188,5 +200,31 @@ class LocationServiceAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """
         Disable the delete permission for Package.
+        """
+        return False
+
+# Registering Booking model in the admin interface
+@admin.register(Booking)
+class BookingAdmin(admin.ModelAdmin):
+    """
+    Admin interface for Booking model.
+    """
+    list_display = ('location', 'customer', 'time_slot_start', 'status', 'payment_status', 'amount', 'created_at', 'updated_at')
+    search_fields = ('customer','status')
+    list_filter = ('status', 'payment_status', 'created_at')
+    
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for Booking.
+        """
+        return True
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for Booking.
+        """
+        return False
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for Booking.
         """
         return False

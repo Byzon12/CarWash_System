@@ -2,6 +2,7 @@
 
 from importlib.util import source_from_cache
 from os import read
+import re
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
@@ -14,36 +15,33 @@ class LocationSerializer(serializers.ModelSerializer):
     """
     Serializer for creating a new location.
     """
-    tenant = serializers.PrimaryKeyRelatedField(queryset=Tenant.objects.all(), write_only=True, required=True)
     name = serializers.CharField(max_length=255, required=True, help_text=_("Name of the location"))
     address = serializers.CharField(max_length=255, required=True, help_text=_("Address of the location"))
     latitude = serializers.FloatField(required=True, help_text=_("Latitude of the location"))
     longitude = serializers.FloatField(required=True, help_text=_("Longitude of the location"))
-    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True, help_text=_("Contact number of the location"))
-    email = serializers.EmailField(required=False, allow_blank=True, help_text=_("Email address of the location"))
+    contact_number = serializers.CharField(max_length=20, required=True, allow_blank=True, help_text=_("Contact number of the location"))
+    email = serializers.EmailField(required=True, allow_blank=True, help_text=_("Email address of the location"))
     
     class Meta:
         model = Location
-        fields = ["tenant", "name", "address", "latitude", "longitude", "contact_number", "email"]
-        read_only_fields = ["created_at", "updated_at"]
+        fields = ["name", "address", "latitude", "longitude", "contact_number", "email"]
+        read_only_fields = ["created_at", "updated_at", "tenant"]
         
     #method to check if there is a another name the same to this
-    
-    
 
     def validate(self, data):
-        """ Validate the data before creating a new location.
-        """
-        tenant = data.get('tenant', None)
-        name = data.get('name', None)
-        if not tenant:
-            raise serializers.ValidationError(_("Tenant is required to create a location."))
-        if not Tenant.objects.filter(id=tenant.id).exists():
-            raise serializers.ValidationError(_("Tenant does not exist."))
-        if name and Location.objects.filter(name=name, tenant=tenant).exists():
+        """validate the data before creating a new location."""
+        # Check if a location with the same name already exists for the tenant
+        tenant = self.context.get('tenant')
+        name = data.get('name')
+        if Location.objects.filter(name=name, tenant=tenant).exists():
             raise serializers.ValidationError(_("Location with this name already exists for this tenant."))
+        #check if the contact number starts with a +254
+        contact_number = data.get('contact_number')
+        if contact_number and not contact_number.startswith("+254"):
+            raise serializers.ValidationError(_("Contact number must start with +254."))
+        
         return data
-
 
     def create(self, validated_data):
         """
@@ -51,7 +49,6 @@ class LocationSerializer(serializers.ModelSerializer):
         """
         
         tenant = validated_data.pop('tenant')
-        
         location = Location.objects.create(tenant=tenant, **validated_data)
         
         return location

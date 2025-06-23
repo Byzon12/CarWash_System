@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     'Tenant.apps.TenantConfig',  # Tenant management app
     'Location.apps.LocationConfig',  # Location management app
     'rest_framework_simplejwt.token_blacklist',  # Token blacklist for JWT
+    "booking",  # Booking app
 ]
 
 MIDDLEWARE = [
