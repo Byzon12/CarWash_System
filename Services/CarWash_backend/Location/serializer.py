@@ -24,22 +24,26 @@ class LocationSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Location
-        fields = ["name", "address", "latitude", "longitude", "contact_number", "email"]
-        read_only_fields = ["created_at", "updated_at", "tenant"]
+        fields = ["name", "address", "latitude", "longitude", "contact_number", "email", 'id']
+        read_only_fields = ["created_at", "updated_at", "tenant", "id"]
         
     #method to check if there is a another name the same to this
 
     def validate(self, data):
         """validate the data before creating a new location."""
         # Check if a location with the same name already exists for the tenant
-        tenant = self.context.get('tenant')
+        tenant = self.context.get('tenant')  # get tenant from context
         name = data.get('name')
-        if Location.objects.filter(name=name, tenant=tenant).exists():
+        if name and Location.objects.filter(name=name, tenant=tenant).exists():
             raise serializers.ValidationError(_("Location with this name already exists for this tenant."))
         #check if the contact number starts with a +254
         contact_number = data.get('contact_number')
         if contact_number and not contact_number.startswith("+254"):
             raise serializers.ValidationError(_("Contact number must start with +254."))
+        # check if locaction should not have the same address
+        address = data.get('address')
+        if address and Location.objects.filter(address=address, tenant=tenant).exists():
+            raise serializers.ValidationError(_("Location with this address already exists for this tenant."))
         
         return data
 
@@ -100,7 +104,7 @@ class ServiceSerializer(serializers.ModelSerializer):
     Serializer for car wash services.
     """
     name = serializers.CharField(max_length=255, required=True, help_text=_("Name of the service"))
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True, help_text=_("Price of the service"))
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, allow_null=True, help_text=_("Price of the service"))
     description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service"))
 
     class Meta:
@@ -111,9 +115,8 @@ class ServiceSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """ Validate the data before creating a new service.
         """
-        
-        
-        if Service.objects.filter(name=data.get('name')).exists():
+        name = data.get('name')
+        if Service.objects.filter(name=name).exists():
             raise serializers.ValidationError(_("Service with this name already exists."))
         return data
     def create(self, validated_data):
@@ -121,43 +124,47 @@ class ServiceSerializer(serializers.ModelSerializer):
         """
         service = Service.objects.create(**validated_data)
         return service
-    
+  
     
     #class serializer to handle service update
     
-    class ServiceUpdateSerializer(serializers.ModelSerializer):
+class ServiceUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating an existing service.
+    """
+    name = serializers.CharField(max_length=255, required=False, allow_blank=True, help_text=_("Name of the service"))
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True, help_text=_("Price of the service"))
+    description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service"))
+
+    class Meta:
+        model = Service
+        fields = ["name", "price", "description"]
+        read_only_fields = ["id"]
+
+    def validate(self, data):
+        """ Validate the data before updating an existing service.
         """
-        Serializer for updating an existing service.
+        instance = self.instance
+        #check if the instance exists
+        if not instance:
+            raise serializers.ValidationError(_("Service does not exist."))
+#check if the name is being updated and if it already exists and but does not belong to the current instance
+        name = data.get('name')
+        if Service.objects.filter(name=name).exclude(id=instance.pk).exists():
+        
+            raise serializers.ValidationError(_("Service with this name already exists."))
+        return data
+
+    def update(self, instance, validated_data):
+        """ Update an existing service instance.
         """
-        name = serializers.CharField(max_length=255, required=False, allow_blank=True, help_text=_("Name of the service"))
-        price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True, help_text=_("Price of the service"))
-        description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service"))
-
-        class Meta:
-            model = Service
-            fields = ["name","price", "description"]
-            read_only_fields = ["id"]
-
-        def validate(self, data):
-            """ Validate the data before updating an existing service.
-            """
-            instance = self.instance
-            if not instance:
-                raise serializers.ValidationError(_("Service does not exist."))
-            if 'name' in data and Service.objects.filter(name=data['name']).exclude(id=instance.id).exists():
-                raise serializers.ValidationError(_("Service with this name already exists."))
-            return data
-
-        def update(self, instance, validated_data):
-            """ Update an existing service instance.
-            """
-            instance.name = validated_data.get('name', instance.name)
-            instance.price = validated_data.get('price', instance.price)
-            instance.description = validated_data.get('description', instance.description)
-            
-            instance.save()
-            
-            return instance
+        instance.name = validated_data.get('name', instance.name)
+        instance.price = validated_data.get('price', instance.price)
+        instance.description = validated_data.get('description', instance.description)
+        
+        instance.save()
+        
+        return instance
         
         
 # class serializer to handle location service

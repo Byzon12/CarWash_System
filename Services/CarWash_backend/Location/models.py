@@ -35,6 +35,7 @@ class Service(models.Model):
     Model representing a car wash service.
     """
     id = models.AutoField(primary_key=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='services', blank=True, null=True)
     name = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     description = models.TextField(blank=True, null=True)

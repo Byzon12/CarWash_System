@@ -2,7 +2,7 @@ from multiprocessing import AuthenticationError
 from django.shortcuts import render
 from ast import Is
 from tkinter import E
-from .serializer import LocationSerializer, LocationUpdateSerializer, ServiceSerializer, LocationServiceSerializer
+from .serializer import LocationSerializer, LocationUpdateSerializer, ServiceSerializer, LocationServiceSerializer, ServiceUpdateSerializer
 from django.utils.translation import gettext_lazy as _
 from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
@@ -87,38 +87,67 @@ class LocationDeleteView(generics.DestroyAPIView):
         self.perform_destroy(instance)
         return Response({'details': 'Location deleted successfully.'}, status=204)
     
+#class to handle the listing of all locations
+class LocationListView(generics.ListAPIView):
+    """
+    API view to list all locations for a login in  tenant.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = LocationSerializer
+
+    #queryset method to get all locations for a tenant
+    def get_queryset(self):
+        tenant= self.request.user  # assuming the user is a tenant
+        return Location.objects.filter(tenant=tenant)  # Filter locations by tenant
+    
     
 #class to handle the creation of a service
 class ServiceCreateView(generics.CreateAPIView):
     """
     API view to create a new service.
     """
-    permission_classes = [AllowAny]  # Allow any user to create a service
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to create a service
     serializer_class = ServiceSerializer
-    queryset = Service.objects.all()
 
-    def create(self, request, *args, **kwargs):
+    def perform_create(self, serializer):
         """Handle the creation of a new service."""
-        serializer = self.get_serializer(data=request.data)
+        tenant = self.request.user  # assuming the user is a tenant
         serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=201, headers=headers)
-    
+        serializer.save(tenant=tenant)  # Save the service with the tenant as the owner
+
+#class to handle service listing
+class ServiceListView(generics.ListAPIView):
+    """
+    API view to list all services for a tenant.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ServiceSerializer
+
+    def get_queryset(self):
+        tenant = self.request.user  # assuming the user is a tenant
+        return Service.objects.filter(tenant=tenant)  # Filter services by tenant
+
 #class to handle the update of a service
+
 class ServiceUpdateView(generics.UpdateAPIView):
     """
     API view to update an existing service.
     """
-    permission_classes = [AllowAny]  # Only authenticated users can update a service
-    serializer_class = ServiceSerializer
-    queryset = Service.objects.all()
+    permission_classes = [IsAuthenticated]  # Only authenticated users can update a service
+    serializer_class = ServiceUpdateSerializer
+
+
+   
+   
+    
 
     def get_object(self):
         """Get the service object based on the provided ID."""
         service_id = self.kwargs.get('pk')
+        tenant = self.request.user  # assuming the user is a tenant
+       
         try:
-            return Service.objects.get(id=service_id)
+            return Service.objects.get(id=service_id,tenant=tenant)
         except Service.DoesNotExist:
             raise serializers.ValidationError(_("Service with this ID does not exist."))
 
