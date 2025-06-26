@@ -185,15 +185,28 @@ class ServiceDeleteView(generics.DestroyAPIView):
         self.perform_destroy(instance)
         return Response({'details': 'Service deleted successfully.'}, status=204)
         
-#class to handle the creation of a location service package
+#class to handle the creation of a location service package for a specified location by logged in tenant
+# This package includes multiple services and is associated with a specific location.
+
 class LocationServiceCreateView(generics.CreateAPIView):
     """
-    API view to create a new location service package.
+    API view to create a new location service package for a specified location by logged in tenant.
     """
-    permission_classes = [AllowAny]  # Allow any user to create a location service package
+    
+    permission_classes = [IsAuthenticated]  # Allow any user to create a location service package
     serializer_class = LocationServiceSerializer
-    queryset = LocationService.objects.all()
-
+    
+     
+    #perform create method to handle the creation of a new location service package base on spesified location for tenant with more than location
+    def perform_create(self, serializer):
+        """Handle the creation of a new location service package."""
+        tenant = self.request.user  # assuming the user is a tenant
+        location =Location.objects.filter(tenant=tenant).first()  # Get the first location for the tenant
+        if not location:
+            raise serializers.ValidationError(_("No location found for this tenant. Please create a location first."))
+        serializer.is_valid(raise_exception=True)
+        serializer.save(location=location)  # Save the location service package with the specified location
+    
     def create(self, request, *args, **kwargs):
         """Handle the creation of a new location service package."""
         serializer = self.get_serializer(data=request.data)

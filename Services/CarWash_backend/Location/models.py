@@ -60,7 +60,6 @@ class LocationService(models.Model):
     name = models.CharField(max_length=255)
     duration = models.DurationField(help_text="Duration of the package in hours and minutes")
     description = models.TextField(blank=True, null=True, help_text="Description of the package")
-    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

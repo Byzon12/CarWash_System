@@ -115,8 +115,9 @@ class ServiceSerializer(serializers.ModelSerializer):
     def validate(self, data):
         """ Validate the data before creating a new service.
         """
+        tenant= self.context.get('tenant')  # get tenant from context
         name = data.get('name')
-        if Service.objects.filter(name=name).exists():
+        if Service.objects.filter(name=name, tenant=tenant).exists():
             raise serializers.ValidationError(_("Service with this name already exists."))
         return data
     def create(self, validated_data):
@@ -165,9 +166,9 @@ class ServiceUpdateSerializer(serializers.ModelSerializer):
         instance.save()
         
         return instance
-        
-        
-# class serializer to handle location service
+
+
+# class serializer to handle creation of location service
 class LocationServiceSerializer(serializers.ModelSerializer):
     """to handle the creation of a location service package."""
     
@@ -184,13 +185,16 @@ class LocationServiceSerializer(serializers.ModelSerializer):
         many=True,
         read_only=True
     )
+    name= serializers.CharField(max_length=255, required=True, help_text=_("Name of the service package"))
+    duration = serializers.DurationField(help_text=_("Duration of the service package in minutes"))
+    description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service package"))
     
     price = serializers.SerializerMethodField(help_text=_("Total price of the package based on the services included"), read_only=True)
 
     class Meta:
         model = LocationService
         fields = ['id',"location",'service', "name", "duration", "description", "price", "location_name", 'service_names', 'service_details']
-        read_only_fields = ["id"]
+        read_only_fields = ["id",'created_at', "updated_at", "tenant", "location"]
 
     def get_service_names(self, obj):
         """Get the names of the services offered at the location."""
@@ -199,13 +203,17 @@ class LocationServiceSerializer(serializers.ModelSerializer):
         return obj.price if obj.price is not None else 0.00
     
     def validate(self, data):
-        location = data.get('location') or self.instance.location if self.instance else None
+        """Validate the data before creating a new location service package."""
+        request = self.context.get('request')  # get request from context
+        tenant = request.user if request.user.is_authenticated else None
+        location = Location.objects.filter(tenant=tenant).first()
         if not location or not isinstance(location, Location):
             raise serializers.ValidationError(_("Valid location is required."))
-        name = data.get('name') or self.instance.name if self.instance else None
-        if not name:
+        
+        name =data.get('name',None)
+        if not name or not name.strip():
             raise serializers.ValidationError(_("Name is required."))
-        if LocationService.objects.filter(name=name, location=location).exclude(id=self.instance.id if self.instance else None).exists():
+        if LocationService.objects.filter(name=name,).exclude(id=self.instance.id if self.instance else None).exists():
             raise serializers.ValidationError(_("Location service with this name already exists for this location."))
         return data
 
