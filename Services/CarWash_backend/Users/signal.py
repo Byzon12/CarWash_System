@@ -23,9 +23,9 @@ def log_profile_creation(sender, instance, created, **kwargs):
     """
     if created:
         log_audit_action(
-            None,
-            
-            'create_profile',
+            None,  # No request context available here
+            user=instance.user,
+            action='create_profile',
             details={'user_id': instance.user.id},
             success=True
         )  
@@ -34,8 +34,14 @@ def log_user_login(sender, request, user, **kwargs):
     """
     Log user login action.
     """
-    log_audit_action(request, 'login', details={'user_id': user.id}, success=True)
-    
+    log_audit_action(
+        request,
+        user=user,
+        action='login',
+        details={'user_id': user.id},
+        success=True
+    )
+
 @receiver(user_logged_out)
 def log_user_logout(sender, request, user, **kwargs):
     """
@@ -44,11 +50,15 @@ def log_user_logout(sender, request, user, **kwargs):
     log_audit_action(request, 'logout', details={'user_id': user.id}, success=True)
     
 @receiver(user_login_failed)
-def log_user_login_failed(sender, credentials, **kwargs):
-    """
-    Log user login failed action.
-    """
-    log_audit_action(None, 'login_failed', details={'credentials': credentials}, success=False)
+def log_user_login_failed(sender, credentials, request, **kwargs):
+    # Log the failed login attempt
+    log_audit_action(
+        request=request,
+        action='login_failed',
+        details={'credentials': credentials},
+        user=None,  # No user because login failed
+        success=False
+    )
 
 @receiver(pre_save, sender=CustomerProfile)
 def log_profile_update(sender, instance, **kwargs):

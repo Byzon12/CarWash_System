@@ -43,7 +43,7 @@ def post(self, request):
     serializer = self.get_serializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
-        log_audit_action(request, details={"email": user.email}, user=user, action='register')
+        log_audit_action(request, details={"email": user.email}, user=user, action='register', success=True)  # Log the registration action
         send_registration_email(user)  # Send registration email
         return Response({'message': 'User registered successfully'}, status=201)
     else:
@@ -79,7 +79,7 @@ class LoginUserView(generics.GenericAPIView):
         refresh = RefreshToken.for_user(user)
     
         # Log the successful login action
-        log_audit_action(request, user=user, action='login', success=True)
+        log_audit_action(request, user=user, action='login', details={'ip_address': request.META.get('REMOTE_ADDR')}, success=True)
         # Send a login notification email
         send_login_notification_email(user, request)
         return Response({
@@ -110,7 +110,7 @@ class LogoutUserView(generics.GenericAPIView):
                 BlacklistedToken.objects.get_or_create(token=token)
             except TokenError as e:
                 return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        log_audit_action(request, action='logout', details='User initiated logout', user=request.user)
+        log_audit_action(request, action='logout', details='User initiated logout', user=user, success=True)  # Log the logout action
 
         return Response({'message': 'User logged out successfully.'}, status=status.HTTP_205_RESET_CONTENT)
 

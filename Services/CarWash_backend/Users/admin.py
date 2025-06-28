@@ -135,7 +135,7 @@ class LocationAdmin(admin.ModelAdmin):
     """
     Admin interface for Location model.
     """
-    list_display = ('name', 'address', 'latitude', 'longitude', 'contact_number', 'email', 'created_at', 'updated_at','id')
+    list_display = ('name', 'address', 'contact_number', 'email', 'id')
     search_fields = ('name', 'address', 'contact_number', 'email')
     list_filter = ('created_at', 'updated_at')
     def has_add_permission(self, request):
@@ -214,7 +214,7 @@ class BookingAdmin(admin.ModelAdmin):
     """
     Admin interface for Booking model.
     """
-    list_display = ('location', 'customer', 'time_slot_start', 'status', 'payment_status', 'amount', 'created_at', 'updated_at')
+    list_display = ('location', 'customer', 'booking_date', 'status', 'payment_status', 'amount', 'created_at', 'updated_at')
     search_fields = ('customer','status')
     list_filter = ('status', 'payment_status', 'created_at')
     
@@ -222,7 +222,7 @@ class BookingAdmin(admin.ModelAdmin):
         """
         Disable the add permission for Booking.
         """
-        return True
+        return False
     def has_change_permission(self, request, obj=None):
         """
         Disable the change permission for Booking.

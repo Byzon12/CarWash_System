@@ -2,11 +2,12 @@ from django.shortcuts import render
 
 # Create your views here.
 from rest_framework.views import APIView
+from rest_framework import status, generics, serializers
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Q
-from .models import Tenant, Service, Booking
-from .serializer import BookingSerializer
+from .models import Tenant, Service, Booking, CustomerProfile
+from .serializer import BookingCreateSerializer
 from .payment_gateways.mpesa import lipa_na_mpesa
 from .payment_gateways.paypal import initiate_paypal_payment
 from .payment_gateways.visa import initiate_visa_payment
@@ -16,9 +17,34 @@ from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
 import json
 
+class BookingCreateView(generics.CreateAPIView):
+    """
+    Create a new booking for a customer.
+    The booking is associated with the tenant of the authenticated user.
+    The customer is automatically set to the authenticated user's profile.
+    """
+    serializer_class = BookingCreateSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        customer_profile = self.request.user.customerprofile
+        return Booking.objects.filter(customer=customer_profile).order_by('-created_at')
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        # Safely get customer profile
+        try:
+            customer_profile = user.customerprofile
+        except CustomerProfile.DoesNotExist:
+            raise serializers.ValidationError({"error": "No CustomerProfile associated with this user."})
+
+        serializer.save(customer=customer_profile)
+
+
 
 
 # List bookings for tenant admin, with filters
+"""
 class TenantBookingList(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -262,4 +288,4 @@ def payment_callback(request):
         booking.save()
         return JsonResponse({'message': 'Payment updated successfully'})
     except Booking.DoesNotExist:
-        return JsonResponse({'error': 'Booking not found'}, status=404)
+        return JsonResponse({'error': 'Booking not found'}, status=404)"""

@@ -6,7 +6,7 @@ import re
 from requests.auth import HTTPBasicAuth
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-from bookings.models import Booking
+from booking.models import Booking
 
 # Constants – Use environment variables in production
 CONSUMER_KEY = 'rLQ2D5DBhGoyHwgrw15dGa0U0V3sUFvO0oGhjMaPpJGy7qKE'
