@@ -1,9 +1,12 @@
+import token
 from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
 from .serializer import  RegisterUserSerializer, LoginSerializer, CustomerProfileSerializer, CustomerProfileUpdateSerializer,PasswordResetSerializer, PasswordResetConfirmSerializer, PasswordChangeSerializer
 from . import serializer
+from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
 from .models import CustomerProfile
 from rest_framework.response import Response
 from rest_framework import status
@@ -14,6 +17,7 @@ from django.utils.encoding import force_bytes # This import is used to encode th
 from django .core.mail import send_mail # This import is used to send emails for user registration and password reset
 #importing the log audit function to log user actions
 from Users.utils.audit import log_audit_action  # Import the function to log user actions
+from .email import send_registration_email, send_login_notification_email, send_logout_notification_email  # Import the function to send registration email
 
 
 # Import necessary modules and classes
@@ -32,19 +36,25 @@ class RegisterUserView(generics.CreateAPIView):
 
     queryset = User.objects.all()
     serializer_class = RegisterUserSerializer
-    permission_classes = [permissions.AllowAny]  # Allow any user to register
-    
-    
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            log_audit_action(request, 'register')
-            return Response({'message': 'User registered successfully.'}, status=status.HTTP_201_CREATED)
-        else:
-            log_audit_action(request, 'failed_register', {'reason': serializer.errors})
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    permission_classes = [AllowAny]  # Allow any user to register
 
+
+def post(self, request):
+    serializer = self.get_serializer(data=request.data)
+    if serializer.is_valid():
+        user = serializer.save()
+        log_audit_action(request, details={"email": user.email}, user=user, action='register')
+        send_registration_email(user)  # Send registration email
+        return Response({'message': 'User registered successfully'}, status=201)
+    else:
+        log_audit_action(
+            request=request,
+            user=getattr(request, 'user', None),  # fallback if user is not authenticated
+            action='failed_register',
+            details={'reason': serializer.errors},
+            success=False
+        )
+        return Response(serializer.errors, status=400)
             
          
        
@@ -67,8 +77,11 @@ class LoginUserView(generics.GenericAPIView):
         
         user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
-        # Generate token or perform any other login logic here
-        
+    
+        # Log the successful login action
+        log_audit_action(request, user=user, action='login', success=True)
+        # Send a login notification email
+        send_login_notification_email(user, request)
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),
@@ -84,28 +97,34 @@ class LogoutUserView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]  # Only authenticated users can logout
 
     def post(self, request):
-        refresh_token = request.data.get('refresh_token')
-        if not refresh_token:
-            return Response({'error': 'Refresh token is required.'}, status=status.HTTP_400_BAD_REQUEST)
-        # Validate the refresh token
-        try:
-            RefreshToken(refresh_token)  # This will raise an error if the token is invalid
-        except TokenError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        user = request.user # Get the authenticated user from the request
+        tokens = OutstandingToken.objects.filter(user=user) # Get all tokens for the user
         
-        # If the token is valid, proceed to logout
-        # Log the user out by blacklisting the refresh token
-        # This will invalidate the token and prevent further access
+        if not tokens.exists():
+            return Response({'error': 'No active session found.'}, status=status.HTTP_400_BAD_REQUEST)
         
-        try:
-            # Blacklist the refresh token to log out the user
-            RefreshToken.for_user(request.user).blacklist()
-            log_audit_action(request, 'logout')
-            return Response({'message': 'User logged out successfully.'}, status=status.HTTP_205_RESET_CONTENT)
-        except TokenError as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        for token in tokens:
+            # Blacklist each token to log out the user
+            try:
+            #if not already blacklisted, blacklist the token
+                BlacklistedToken.objects.get_or_create(token=token)
+            except TokenError as e:
+                return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        log_audit_action(request, action='logout', details='User initiated logout', user=request.user)
+
+        return Response({'message': 'User logged out successfully.'}, status=status.HTTP_205_RESET_CONTENT)
+
+
 class CustomerProfileView(generics.RetrieveUpdateAPIView):
     """
+    API view for retrieving and updating the authenticated customer's profile.
+    - GET: Returns the customer's profile data using `CustomerProfileSerializer`.
+    - PUT/PATCH: Updates the customer's profile using `CustomerProfileUpdateSerializer`.
+    - Only authenticated users can access this view.
+    Methods:
+        get_serializer_class: Dynamically selects the serializer based on the HTTP method.
+        get_object: Retrieves the `CustomerProfile` instance associated with the authenticated user.
+    
     View to retrieve and update the customer profile.
     """
     permission_classes = [IsAuthenticated]  # Only authenticated users can access this view
@@ -113,6 +132,10 @@ class CustomerProfileView(generics.RetrieveUpdateAPIView):
     #dynamic serializer selection based on request method
     def get_serializer_class(self):
         if self.request.method == 'GET':
+            # Use CustomerProfileSerializer for GET requests
+            # This serializer is used to retrieve the customer's profile data
+            
+            
             return CustomerProfileSerializer
         elif self.request.method in ['PUT', 'PATCH']:
             return CustomerProfileUpdateSerializer
@@ -120,6 +143,7 @@ class CustomerProfileView(generics.RetrieveUpdateAPIView):
     
     def get_object(self):
         # Get the customer profile for the authenticated user
+        
         return CustomerProfile.objects.get(user=self.request.user)
     
     
@@ -127,32 +151,17 @@ class PasswordResetView(generics.GenericAPIView):
     """
     View to handle password reset requests.
     """
-    serializer_class = PasswordResetSerializer  # Use the serializer for password reset
+    serializer_class = PasswordResetSerializer
     permission_classes = [permissions.AllowAny]  # Allow any user to request a password reset
 
-    def post(self, request, *args, **kwargs):
-        email = request.data.get('email')
-        if not email:
-            return Response({'error': 'Email is required'}, status=status.HTTP_400_BAD_REQUEST)
+    def post(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        try:
-            user = User.objects.get(email=email)
-            token = default_token_generator.make_token(user)
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            reset_link = f"http://127.0.0.1:8000/user/password-reset-confirm/{uid}/{token}/"
-            
-            send_mail(
-                subject='Password Reset Request',
-                message= f'Click the link to reset your password: {reset_link}',
-               
-                from_email= 'byzoneochieng@mail.com',  # from_email (set appropriately)
-                recipient_list= [user.email],  # recipient_list
-            )
-            return Response({'message': 'Password reset email sent.'}, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
-            return Response({'error': 'User with this email does not exist.'}, status=status.HTTP_404_NOT_FOUND)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Save the serializer to send the password reset email
+        serializer.save()
+        
+        return Response({'message': 'Password reset email has been sent.'}, status=status.HTTP_200_OK)
         
 # view for password reset confirmation
 class PasswordResetConfirmView(generics.GenericAPIView):

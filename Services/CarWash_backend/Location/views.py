@@ -167,13 +167,15 @@ class ServiceDeleteView(generics.DestroyAPIView):
     """
     API view to delete an existing service.
     """
-    permission_classes = [AllowAny]  # Only authenticated users can delete a service
+    permission_classes = [IsAuthenticated]  # Only authenticated users can delete a service
 
     def get_object(self):
         """Get the service object based on the provided ID."""
+        tenant = self.request.user  # assuming the user is a tenant
         service_id = self.kwargs.get('pk')
+        
         try:
-            return Service.objects.get(id=service_id)
+            return Service.objects.get(id=service_id, tenant=tenant)
         except Service.DoesNotExist:
             raise serializers.ValidationError(_("Service with this ID does not exist."))
 
@@ -225,8 +227,11 @@ class LocationServiceDeleteView(generics.DestroyAPIView):
     def get_object(self):
         """Get the location service package object based on the provided ID."""
         pk = self.kwargs.get('pk')
+        tenant = self.request.user  # assuming the user is a tenant
+        if not tenant:
+            raise serializers.ValidationError(_("You must be logged in to delete a location service package."))
         try:
-            return LocationService.objects.get(id=pk)
+            return LocationService.objects.get(id=pk, location__tenant=tenant)
         except LocationService.DoesNotExist:
             raise serializers.ValidationError(_("Location Service Package with this ID does not exist."))
 
@@ -244,9 +249,15 @@ class LocationServiceListView(generics.ListAPIView):
     """
     API view to list all location service packages.
     """
-    permission_classes = [AllowAny]  # Allow any user to view location service packages
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to view location service packages
     serializer_class = LocationServiceSerializer
-    queryset = LocationService.objects.all()
+    
+    #get_queryset method to filter location services by tenant
+    def get_queryset(self):
+        tenant = self.request.user  # assuming the user is a tenant
+        if not tenant:
+            raise serializers.ValidationError(_("You must be logged in to view location services."))
+        return LocationService.objects.filter(location__tenant=tenant)  # Filter location services by tenant
     
     """
     def get_queryset(self):
@@ -265,15 +276,18 @@ class LocationServiceDetailView(generics.RetrieveUpdateAPIView):
     """
     API view to retrieve and update a specific location service package.
     """
-    permission_classes = [AllowAny]  # Allow any user to view and update location service packages
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to view and update location service packages
     serializer_class = LocationServiceSerializer
     queryset = LocationService.objects.all()
 
     def get_object(self):
         """Get the location service package object based on the provided ID."""
         pk = self.kwargs.get('pk')
+        tenant = self.request.user  # assuming the user is a tenant
+        if not tenant:
+            raise serializers.ValidationError(_("You must be logged in to view location services."))
         try:
-            return LocationService.objects.get(id=pk)
+            return LocationService.objects.get(id=pk, location__tenant=tenant)
         except LocationService.DoesNotExist:
             raise serializers.ValidationError(_("Location Service Package with this ID does not exist."))
     def retrieve(self, request, *args, **kwargs):

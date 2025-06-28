@@ -47,6 +47,9 @@ class Service(models.Model):
         verbose_name = "Service"
         verbose_name_plural = "Services"
         ordering = ['name']
+        constraints = [
+            models.UniqueConstraint(fields=['tenant', 'name'], name='unique_service_name_per_tenant')
+        ]
         
 #model class for car wash service parkage
 

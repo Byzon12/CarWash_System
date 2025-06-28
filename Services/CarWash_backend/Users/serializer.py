@@ -1,3 +1,8 @@
+from importlib.util import source_from_cache
+from os import read
+from turtle import reset
+from typing import Required
+from django.contrib.auth.forms import PasswordResetForm
 from django.contrib.auth.models import User
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
@@ -5,6 +10,11 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
 from django.contrib.auth.password_validation import validate_password
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+
+from .email import send_password_reset_email
+#from Services.CarWash_backend.Users.authentication import UsernameOrEmailBackend
 from .models import CustomerProfile
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from django.utils.encoding import force_bytes
@@ -72,8 +82,8 @@ class RegisterUserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['username', 'email', 'first_name','last_name', 'password', 'confirm_password']
         extra_kwargs = {
-            'password': {'write_only': False, 'min_length': 8},
-            'confirm_password': {'write_only': False, 'min_length': 8}
+            'password': {'write_only': True, 'min_length': 8},
+            'confirm_password': {'write_only': True, 'min_length': 8}
         }
         
         #method to validate the uniqueness of the username field
@@ -159,15 +169,33 @@ class PasswordResetSerializer(serializers.Serializer):
             'invalid': _('Enter a valid email address.')
         }
     )
+    
+   
     def validate_email(self, value):
         """
         Validate the email address for password reset.
         Ensure that the email exists in the system.
         """
+
         if not User.objects.filter(email=value).exists():
             raise serializers.ValidationError(_('Email does not exist.'))
-        return value    
-      
+        return value
+
+        #overriding save method to send password reset email
+    def save(self, **kwargs):
+        request = self.context.get('request')
+        email = self.validated_data['email']
+        user = User.objects.filter(email=email).first()
+        if not user:
+            raise serializers.ValidationError(_('User with this email does not exist.'))
+
+        # Generate password reset token
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+
+        # Send password reset email
+        send_password_reset_email(user, token, uid, request)
+
 class PasswordResetConfirmSerializer(serializers.Serializer):
     """Serializer for confirming password reset.
     This serializer validates the new password and ensures it meets the required criteria.
@@ -220,42 +248,33 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         except ValidationError as e:
             raise serializers.ValidationError({'new_password': list(e.messages)})
         
-        return attrs
-    
-    def validate_uid(self, value):
-        """
-        Validate the user ID (uid) for password reset confirmation.
-        Ensure that the user exists and the uid is valid.
-        confims that is by decoding the uid and checking if the user exists.
-        
-
-        """
+        # Validate the uid and token
         try:
-            uid = urlsafe_base64_decode(value['uid']).decode('utf-8')
+            uid = urlsafe_base64_decode(attrs['uid']).decode('utf-8')
             user = User.objects.get(pk=uid)
-        except (TypeError, ValueError, User.DoesNotExist):
+            self.user = user
+
+        except (ValueError, User.DoesNotExist):
             raise serializers.ValidationError(_('Invalid user ID.'))
         
-        if not default_token_generator.check_token(user, value['tokens']):
+        if not default_token_generator.check_token(user, attrs['tokens']):
             raise serializers.ValidationError(_('Invalid token.'))
-        value['user'] = user
         
-        return value
-   
-    
-    def create(self, **kwargs):
+        #store the user in validated_data for later use
+        self.user = user
+        return attrs
+
+    def save(self, **kwargs):
         """
-        removes the confirm_password field from validated_data
         Save the new password for the user.
-        This method is called after validation to update the user's password.
         """
-        self.validated_data.pop('confirm_password', None)  # Remove confirm_password from validated_data
-        self.validated_data.pop('uid', None)  # Remove uid from validated_data
-        user = self.validated_data['user']
-        user.set_password(self.validated_data['new_password'])
-        user.save()
-        return user
- 
+        password = self.validated_data['new_password']
+        user= self.user
+        user.set_password(password)  # Set the new password
+        
+        self.user.save()
+        return self.user
+
 class PasswordChangeSerializer(serializers.Serializer):
     old_password = serializers.CharField(
         write_only=True,
@@ -326,110 +345,81 @@ class PasswordChangeSerializer(serializers.Serializer):
 
 #updating userprofile
 class CustomerProfileSerializer(serializers.ModelSerializer):
-    first_name = serializers.CharField(source ="user.first_name")
+    first_name = serializers.CharField(source="user.first_name")
     last_name = serializers.CharField(source='user.last_name')
     email = serializers.EmailField(max_length=255, source='user.email')
+    username = serializers.CharField(
+        source='user.username',
+        read_only=True
+    )
 
-class Meta:
-    """
-    Meta class for the serializer, specifying the model and fields to be serialized.
-    Attributes:
-        model (User): The User model associated with this serializer.
-        fields (list): List of fields to include in the serialization.
-        extra_kwargs (dict): Additional keyword arguments for field-level options, such as making certain fields optional or read-only.
-    Methods:
-        update(instance, validated_data):
-            Updates the instance with validated data, handling nested user data if present.
-            Args:
-                instance: The model instance to update.
-                validated_data (dict): The validated data to update the instance with.
-            Returns:
-                The updated instance.
-    """
-    model = CustomerProfile
-    fields = ['first_name', 'last_name', 'email', 'phone_number', 'address', 'loyalty_points']
-    extra_kwargs = {
-        'phone_number': {'required': False, 'allow_blank': True},
-        'address': {'required': False, 'allow_blank': True},
-        'loyalty_points': {'read_only': True}
-    }
+    class Meta:
+        """
+        Meta class for the serializer, specifying the model and fields to be serialized.
+        Attributes:
+            model (User): The User model associated with this serializer.
+            fields (list): List of fields to include in the serialization.
+            extra_kwargs (dict): Additional keyword arguments for field-level options, such as making certain fields optional or read-only.
+        Methods:
+            update(instance, validated_data):
+                Updates the instance with validated data, handling nested user data if present.
+                Args:
+                    instance: The model instance to update.
+                    validated_data (dict): The validated data to update the instance with.
+                Returns:
+                    The updated instance.
+        """
+        model = CustomerProfile
+        fields = ['username','first_name', 'last_name', 'email', 'phone_number', 'address', 'loyalty_points']
+        extra_kwargs = {
+            'phone_number': {'required': False, 'allow_blank': True},
+            'address': {'required': False, 'allow_blank': True},
+            'loyalty_points': {'read_only': True}
+        }
+
+    def validate_email(self, value):
+        """
+        Validate the email address for password reset.
+        Ensure that the email exists in the system.
+        """
+        if not CustomerProfile.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_('Email does not exist.'))
+        return value
+        # this serializer get email of the requested password related user and. and handle the reset logic to enable password reset
+
+  
     
+    
+    #class CustomerProfileUpdateSerializer(serializers.ModelSerializer):
 class CustomerProfileUpdateSerializer(serializers.ModelSerializer):
     """
-    serializer for updating customer profile information.
+    Serializer for updating the customer profile.
+    This serializer allows updating the user's first name, last name, email, phone number, and address.
+    """
+    username = serializers.CharField(
+        source='user.username',
+        read_only=True,
+    )
     
+    class Meta:
+        model = CustomerProfile
+        fields = ['username', 'first_name', 'last_name', 'email', 'phone_number', 'address']
+        extra_kwargs = {
+            'phone_number': {'required': False, 'allow_blank': True},
+            'address': {'required': False, 'allow_blank': True}
+        }
+    def validate_email(self, value):
         """
-username = serializers.CharField(
-    source='user.username',
-    max_length=150,
-    validators=[UnicodeUsernameValidator()],
-    error_messages={
-        'blank': _('Username cannot be blank.'),
-        'max_length': _('Username cannot exceed 150 characters.')
-    }
-)
-email = serializers.EmailField(
-    source='user.email',
-    required=False,
-    error_messages={
-        'blank': _('Email cannot be blank.'),
-        'invalid': _('Enter a valid email address.')
-    }
-)
-first_name = serializers.CharField(
-    source='user.first_name',
-    max_length=255,
-    error_messages={
-        'blank': _('First name cannot be blank.'),
-        'max_length': _('First name cannot exceed 255 characters.')
-    }
-)
-last_name = serializers.CharField(
-    source='user.last_name',
-    max_length=255,
-    error_messages={
-        'blank': _('Last name cannot be blank.'),
-        'max_length': _('Last name cannot exceed 255 characters.')
-    }
-)
-phone_number = serializers.CharField(
-    max_length=15,
-    required=False,
-    allow_blank=True,
-    error_messages={
-        'max_length': _('Phone number cannot exceed 15 characters.')
-    }
-)
-address = serializers.CharField(
-    allow_blank=True,
-    required=False,
-    error_messages={
-        'blank': _('Address cannot be blank.')
-    }
-)
-loyalty_points = serializers.IntegerField(
-    read_only=True,
-    error_messages={
-        'read_only': _('Loyalty points cannot be modified directly.')
-    }
-)
-class Meta:
-    model = CustomerProfile
-    fields = ['username', 'email', 'first_name', 'last_name', 'phone_number', 'address', 'loyalty_points']
-    extra_kwargs = {
-        'username': {'required': True, 'allow_blank': False},
-        'email': {'required': False},
-        'first_name': {'required': True},
-        'last_name': {'required': True},
-        'phone_number': {'required': False, 'allow_blank': True},
-        'address': {'required': False, 'allow_blank': True}
-    }
-def update(self, instance, validated_data):
-    user_data = validated_data.pop('user', {})
-    for attr, value in user_data.items():
-        setattr(instance.user, attr, value)
-    instance.user.save()
-    for attr, value in validated_data.items():
-        setattr(instance, attr, value)
-    instance.save()
-    return instance
+        Validate the email address for updating the customer profile.
+        Ensure that the email does not already exist for another user.
+        
+        """
+        if CustomerProfile.objects.filter(email=value).exclude(id=self.instance.id).exists():
+            raise serializers.ValidationError(_('Email already exists.'))
+        return value
+    def update(self, instance, validated_data):
+        """ updates the customer profile instance with the validated data."""
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance

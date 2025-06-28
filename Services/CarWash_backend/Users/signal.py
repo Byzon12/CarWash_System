@@ -4,8 +4,7 @@ from django.contrib.auth.models import User
 from .utils.audit import log_audit_action
 from django.contrib.auth.signals import user_logged_in, user_logged_out, user_login_failed
 from .models import CustomerProfile, AuditLog
-from Users.models import AuditLog
-
+from .email import send_registration_email
 
 @receiver(post_save, sender=User)
 def create_customer_profile(sender, instance, created, **kwargs):
@@ -14,8 +13,22 @@ def create_customer_profile(sender, instance, created, **kwargs):
     """
     if created:
         CustomerProfile.objects.create(user=instance)
-        
-        
+    # send registration email
+    send_registration_email(instance)
+
+@receiver(post_save, sender=CustomerProfile)
+def log_profile_creation(sender, instance, created, **kwargs):
+    """
+    Log profile creation action.
+    """
+    if created:
+        log_audit_action(
+            None,
+            
+            'create_profile',
+            details={'user_id': instance.user.id},
+            success=True
+        )  
 @receiver(user_logged_in)
 def log_user_login(sender, request, user, **kwargs):
     """

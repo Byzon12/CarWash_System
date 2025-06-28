@@ -19,6 +19,11 @@ class CustomerProfileAdmin(admin.ModelAdmin):
     
     def has_add_permission(self, request):
         return False
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for CustomerProfile.
+        """
+        return False
     
 @admin.register(AuditLog)
 class AuditLogAdmin(admin.ModelAdmin):
@@ -155,7 +160,7 @@ class ServiceAdmin(admin.ModelAdmin):
     """
     Admin interface for Service model.
     """
-    list_display = ('name', 'description','id')
+    list_display = ('name', 'description','id', 'tenant')
     
     
 

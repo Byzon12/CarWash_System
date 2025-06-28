@@ -193,8 +193,18 @@ class LocationServiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LocationService
-        fields = ['id',"location",'service', "name", "duration", "description", "price", "location_name", 'service_names', 'service_details']
+        fields = ['id',"location_name",'service', "name", "duration", "description", "price", 'service_names', 'service_details']
         read_only_fields = ["id",'created_at', "updated_at", "tenant", "location"]
+        
+    #override the __init__ method to set query set for the service field only to the services that belong to the tenant
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        request = self.context.get('request')
+        tenant = request.user if request.user.is_authenticated else None
+        if tenant:
+            self.fields['service'].queryset = Service.objects.filter(tenant=tenant)
+        else:
+            self.fields['service'].queryset = Service.objects.none()    
 
     def get_service_names(self, obj):
         """Get the names of the services offered at the location."""
@@ -213,8 +223,14 @@ class LocationServiceSerializer(serializers.ModelSerializer):
         name =data.get('name',None)
         if not name or not name.strip():
             raise serializers.ValidationError(_("Name is required."))
-        if LocationService.objects.filter(name=name,).exclude(id=self.instance.id if self.instance else None).exists():
+        if LocationService.objects.filter(name=name, location__tenant=tenant).exclude(id=self.instance.id if self.instance else None).exists():
             raise serializers.ValidationError(_("Location service with this name already exists for this location."))
+        #validation of services belonging to the tenant
+        services = data.get('service', [])
+        for service in services:
+            if service.tenant != tenant:
+                raise serializers.ValidationError(_("Service with ID {} does not belong to the tenant.").format(service.id))
+        
         return data
 
     def create(self, validated_data):
