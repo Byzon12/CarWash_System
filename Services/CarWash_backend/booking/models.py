@@ -36,7 +36,7 @@ class Booking(models.Model):
     location_service = models.ForeignKey(LocationService, on_delete=models.CASCADE, related_name='bookings', help_text="The specific service package booked at this location.")
    # staff_member = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_bookings', help_text="The staff member assigned to this booking (optional).")
     booking_date = models.DateTimeField(help_text="The start time of the booking.")
-  #  time_slot_end = models.DateTimeField(blank=True, null=True, help_text="The calculated end time of the booking based on service duration.")
+    time_slot_end = models.DateTimeField(blank=True, null=True, help_text="The calculated end time of the booking based on service duration.")
     amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="The total amount for the booking.")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, null=True, blank=True)
@@ -51,6 +51,13 @@ class Booking(models.Model):
         verbose_name = "Booking"
         verbose_name_plural = "Bookings"
         ordering = ['booking_date']
+        
+    #function to calculate the end time of the booking based on the service duration
+    def save(self, *args, **kwargs):
+        if not self.time_slot_end:
+            # Calculate end time based on the service duration
+            self.time_slot_end = self.booking_date + self.location_service.duration
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Booking for {self.customer} at {self.location.name} for {self.location_service.name} on {self.booking_date.strftime('%Y-%m-%d %H:%M')} - Status: {self.status}"

@@ -49,7 +49,8 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         model = Booking
         fields = [
             'location',
-            'location_service',
+            'status',
+            'payment_status',
             'customer',
             'location_service',
             'booking_date',
@@ -110,9 +111,37 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         
         """
         request = self.context.get('request')
-        validated_data['customer'] = request.user.customer_profile
-        
+        try:
+            validated_data['customer'] = request.user.Customer_profile
+        except CustomerProfile.DoesNotExist:
+            raise serializers.ValidationError({"error": "No CustomerProfile associated with this user."})
+
         booking = Booking.objects.create(**validated_data)
         return booking
 
-#function to create a booking
+
+#class serialier to update a booking
+class BookingUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating a booking.
+    This serializer allows updating the booking date, status, payment status,
+    and payment reference. It does not allow changing the customer or location.
+    """
+    class Meta:
+        model = Booking
+        fields = ['booking_date', 'status', 'payment_status', 'payment_reference']
+        read_only_fields = ['customer', 'location', 'created_at', 'updated_at']
+
+    def validate(self, data):
+        """Validate the written data for the booking."""
+        booking_date = data.get('booking_date')
+        
+        # Check if the booking date is provided
+        if not booking_date:
+            raise serializers.ValidationError(_("Booking date is required."))
+        
+        # Check if the booking date is in the future
+        if booking_date <= timezone.now():
+            raise serializers.ValidationError(_("Booking date must be in the future."))
+        
+        return data

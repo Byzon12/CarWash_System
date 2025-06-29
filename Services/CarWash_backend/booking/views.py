@@ -27,14 +27,14 @@ class BookingCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        customer_profile = self.request.user.customerprofile
+        customer_profile = self.request.user.Customer_profile
         return Booking.objects.filter(customer=customer_profile).order_by('-created_at')
 
     def perform_create(self, serializer):
         user = self.request.user
         # Safely get customer profile
         try:
-            customer_profile = user.customerprofile
+            customer_profile = user.Customer_profile
         except CustomerProfile.DoesNotExist:
             raise serializers.ValidationError({"error": "No CustomerProfile associated with this user."})
 
@@ -43,145 +43,7 @@ class BookingCreateView(generics.CreateAPIView):
 
 
 
-# List bookings for tenant admin, with filters
 """
-class TenantBookingList(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        tenant = getattr(request.user, 'tenant', None)
-        if not tenant:
-            return Response({"error": "Tenant not found"}, status=404)
-        tenant_id = tenant.id
-        tenant_id = request.query_params.get('tenantId', tenant_id)
-        if not tenant_id:
-            return Response({"error": "tenantId query parameter is required"}, status=400)
-        status = request.query_params.get('status')
-        staff = request.query_params.get('staff')
-        start = request.query_params.get('start')
-        end = request.query_params.get('end')
-
-        bookings = Booking.objects.filter(tenant_id=tenant_id)
-
-        if status:
-            bookings = bookings.filter(status=status)
-        if staff:
-            bookings = bookings.filter(staff_id=staff)
-        if start and end:
-            bookings = bookings.filter(time_slot__range=[start, end])
-
-        serializer = BookingSerializer(bookings, many=True)
-        return Response(serializer.data)
-
-# Update booking status
-class UpdateBookingStatus(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request, booking_id):
-        status = request.data.get('status')
-        if status not in dict(Booking.STATUS_CHOICES):
-            return Response({"error": "Invalid status"}, status=400)
-
-        try:
-            booking = Booking.objects.get(id=booking_id)
-        except Booking.DoesNotExist:
-            return Response({"error": "Booking not found"}, status=404)
-
-        booking.status = status
-        booking.save()
-        return Response({'status': 'updated'})
-
-# Calendar view: aggregate bookings by staff and date
-class CalendarBookingView(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        tenant_id = request.query_params.get('tenantId')
-        if not tenant_id:
-            return Response({"error": "tenantId query parameter is required"}, status=400)
-
-        bookings = Booking.objects.filter(tenant_id=tenant_id)
-        data = {}
-        for booking in bookings:
-            key = f"{booking.staff_id}_{booking.time_slot.date()}"
-            if key not in data:
-                data[key] = []
-            data[key].append(BookingSerializer(booking).data)
-        return Response(data)
-
-# Customer side: get list of services by tenant
-class ServiceList(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        tenant_id = request.query_params.get('tenantId')
-        if not tenant_id:
-            return Response({"error": "tenantId query parameter is required"}, status=400)
-
-        services = Service.objects.filter(tenant_id=tenant_id)
-        serializer = ServiceSerializer(services, many=True)
-        return Response(serializer.data)
-
-# Customer side: check staff availability for a service and date
-class StaffAvailability(APIView):
-    permission_classes = [AllowAny]
-
-    def get(self, request):
-        tenant_id = request.query_params.get('tenantId')
-        service_id = request.query_params.get('serviceId')
-        date = request.query_params.get('date')  # YYYY-MM-DD
-
-        if not all([tenant_id, service_id, date]):
-            return Response({"error": "tenantId, serviceId, and date are required"}, status=400)
-
-        try:
-            service = Service.objects.get(id=service_id, tenant_id=tenant_id)
-        except Service.DoesNotExist:
-            return Response({"error": "Service not found for tenant"}, status=404)
-
-        duration = service.duration_minutes
-        slots = []
-
-        active_staff = Staff.objects.filter(tenant_id=tenant_id, is_active=True)
-        for staff in active_staff:
-            # Simple availability mock — checks 9am to 5pm hourly slots
-            for hour in range(9, 17):
-                time_str = f"{date}T{hour:02}:00:00"
-                exists = Booking.objects.filter(staff=staff, time_slot=time_str).exists()
-                if not exists:
-                    slots.append({
-                        "staff_id": staff.id,
-                        "staff_name": staff.name,
-                        "time": time_str,
-                    })
-
-        return Response(slots)
-
-# Customer creates a booking (status defaults to 'pending')
-class CreateBooking(APIView):
-    permission_classes = [AllowAny]
-
-    def post(self, request):
-        data = request.data.copy()
-
-        # Ensure 'service' is provided
-        service_id = data.get('service')
-        if not service_id:
-            return Response({'error': 'Service ID is required.'}, status=400)
-
-        # Fetch service and price
-        try:
-            service = Service.objects.get(id=service_id)
-            data['amount'] = service.price
-        except Service.DoesNotExist:
-            return Response({'error': 'Service not found.'}, status=404)
-
-        # Serialize and save
-        serializer = BookingSerializer(data=data)
-        if serializer.is_valid():
-            serializer.save(status='pending')
-            return Response({'status': 'created', 'booking': serializer.data}, status=201)
-        return Response(serializer.errors, status=400)
 
 @csrf_exempt
 def initiate_payment(request):
