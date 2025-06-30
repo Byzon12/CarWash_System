@@ -157,6 +157,8 @@ class LoginSerializer(serializers.Serializer):
       
       
       
+      
+      
   #class serializer for password rquests reset
 class PasswordResetSerializer(serializers.Serializer):
     """Serializer for handling password reset requests.

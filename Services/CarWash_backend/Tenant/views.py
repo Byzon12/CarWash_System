@@ -64,7 +64,7 @@ class TenantProfileView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         #only allow the tenant to access their own profile
-         tenant = self.request.user  # Assuming you have set the tenant in the request object
+         tenant = self.request.user  #  tenant is set in the request object
          return TenantProfile.objects.filter(tenant=tenant)  # Assuming TenantProfile has a ForeignKey to Tenant
 
      # method to return the exting  tenant profile or  raise an error if it does not exist

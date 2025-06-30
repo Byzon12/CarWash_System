@@ -200,8 +200,9 @@ class LocationServiceSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
-        tenant = request.user if request.user.is_authenticated else None
-        if tenant:
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            # Get the tenant from the authenticated user
+            tenant = request.user
             self.fields['service'].queryset = Service.objects.filter(tenant=tenant)
         else:
             self.fields['service'].queryset = Service.objects.none()    

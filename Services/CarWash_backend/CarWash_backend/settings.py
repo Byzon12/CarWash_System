@@ -33,12 +33,14 @@ SECRET_KEY = 'django-insecure-kf+w=&$zt$hd9$)v13t+@9@gai=#%pzvs_h1-710m&%h*!*921
 DEBUG = True
 
 ALLOWED_HOSTS = ["*"]  # Allow all hosts for development; change in production
+
 # CORS settings
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework_simplejwt.authentication.JWTAuthentication",
-        "Tenant.Authentication.TenantAuthentication",  # Custom tenant authentication
+        "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
+       
         "knox.auth.TokenAuthentication",  # Knox authentication
         
     ),
@@ -46,6 +48,30 @@ REST_FRAMEWORK = {
         "rest_framework.permissions.IsAuthenticated",
     ],
 }
+"""
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "rest_framework_simplejwt.authentication.JWTAuthentication",  # JWT authentication
+        "Tenant.Authentication.TenantAuthentication",  # Custom tenant authentication
+        
+        "knox.auth.TokenAuthentication",  # Knox authentication
+        
+    ),
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+          "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
+           "rest_framework_simplejwt.authentication.JWTAuthentication", 
+        "knox.auth.TokenAuthentication",  # Knox authentication
+        
+    ),
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}"""
 
 SIMPLE_JWT= {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=180),  # Access token lifetime
@@ -161,7 +187,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Nairobi'
 
 USE_I18N = True
 

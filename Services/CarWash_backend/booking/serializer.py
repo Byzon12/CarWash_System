@@ -9,8 +9,13 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
 from django.utils import timezone
+from django.db import transaction
+from Users.serializer import CustomerProfileSerializer
+from Location.serializer import LocationServiceSerializer, LocationSerializer
+
+
 from .models import CustomerProfile
-from .models import Location, LocationService
+from .models import Location, LocationService, Booking
 
 # Import models
 from booking.models import Booking
@@ -129,19 +134,102 @@ class BookingUpdateSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Booking
-        fields = ['booking_date', 'status', 'payment_status', 'payment_reference']
+        fields =  ['customer', 'booking_date', 'status', 'payment_status', 'payment_reference', 'location', 'location_service']
         read_only_fields = ['customer', 'location', 'created_at', 'updated_at']
 
-    def validate(self, data):
-        """Validate the written data for the booking."""
-        booking_date = data.get('booking_date')
-        
-        # Check if the booking date is provided
-        if not booking_date:
+#function to validate the booking date
+
+    def validate_booking_date(self, value):
+        """ Validate the booking date to ensure it is in the future.
+        """
+        if not value:
             raise serializers.ValidationError(_("Booking date is required."))
-        
-        # Check if the booking date is in the future
+        if value <= timezone.now():
+            raise serializers.ValidationError(_("Booking date must be in the future."))
+        return value
+
+    # object lavel to validate the booking
+    def validate(self, data):
+        """object level validation for the booking. 
+            """
+        instance = self.instance
+        booking_date = data.get('booking_date', instance.booking_date)
+        request = self.context.get('request')
+        user =getattr(request, 'user', None)
+         #prevent updating locationservices that belong to a different location
+        if 'location_service' in data:
+            location_service = data['location_service']
+            if location_service.location != instance.location:
+                raise serializers.ValidationError(_("Cannot update location service to a different location."))
+
+        #prevent booking if the status is cancelled or completed
+        if instance.status in ['cancelled', 'completed']:
+            raise serializers.ValidationError(_("Cannot update a booking that is cancelled or completed."))
+        # Check if the booking date conflicts with existing bookings
+        existing_bookings = Booking.objects.filter(
+            location=instance.location,
+            booking_date=booking_date,
+        ).exclude(id=instance.id)   # Exclude the current booking instance
+        if existing_bookings.exists():
+            raise serializers.ValidationError(_("Booking date conflicts with existing bookings."))
+        # If the booking date is changed, ensure it is in the future
         if booking_date <= timezone.now():
             raise serializers.ValidationError(_("Booking date must be in the future."))
-        
         return data
+    
+    #
+    def update(self, instance, validated_data):
+        """Update the booking instance with the validated data."""
+        user = self.context.get('request').user
+        
+        old_data = {
+            'location_service': instance.location_service,
+            'booking_date': instance.booking_date,
+            'status': instance.status,
+            'payment_status': instance.payment_status,
+            'payment_reference': instance.payment_reference
+        }
+        with transaction.atomic():
+            # Log the old data before updating
+            instance.location_service = validated_data.get('location_service', instance.location_service)
+            instance.booking_date = validated_data.get('booking_date', instance.booking_date)
+            instance.status = validated_data.get('status', instance.status)
+            instance.payment_status = validated_data.get('payment_status', instance.payment_status)
+            instance.payment_reference = validated_data.get('payment_reference', instance.payment_reference)
+            instance.save()
+        return instance
+
+#serializer to get the booking details
+class BookingDetailSerializer(serializers.ModelSerializer):
+    """
+    Serializer for retrieving booking details.
+    This serializer includes all fields of the Booking model.
+    It is used to get the details of a specific booking instance.
+    
+    """
+    customer = CustomerProfileSerializer(read_only=True, help_text=_("The customer making the booking."))
+    location = LocationSerializer(read_only=True, help_text=_("The car wash location where the booking is made."))
+    location_service = LocationServiceSerializer(read_only=True, help_text=_("The specific service package booked at this location."))
+    class Meta:
+        model = Booking
+        fields = '__all__'
+        read_only_fields = [
+            'customer', 
+            'location', 
+            'status', 
+            'payment_status', 
+            'payment_reference', 
+            'created_at', 
+            'updated_at'
+        ]
+        
+       #claculate the end time of the booking based on the service duration
+    def get_time_slot_end(self, obj):
+        """
+        Calculate the end time of the booking based on the service duration.
+        """
+        if obj.time_slot_end:
+            return obj.time_slot_end
+        if obj.booking_date and obj.location_service:
+            return obj.booking_date + obj.location_service.duration
+        return None

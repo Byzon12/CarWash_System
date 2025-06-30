@@ -34,6 +34,7 @@ class Booking(models.Model):
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='bookings', help_text="The car wash location where the booking is made.")
     customer = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name='bookings', help_text="The customer making the booking.")
     location_service = models.ForeignKey(LocationService, on_delete=models.CASCADE, related_name='bookings', help_text="The specific service package booked at this location.")
+    id = models.AutoField(primary_key=True, help_text="Unique identifier for the booking.")
    # staff_member = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_bookings', help_text="The staff member assigned to this booking (optional).")
     booking_date = models.DateTimeField(help_text="The start time of the booking.")
     time_slot_end = models.DateTimeField(blank=True, null=True, help_text="The calculated end time of the booking based on service duration.")

@@ -44,7 +44,7 @@ def post(self, request):
     if serializer.is_valid():
         user = serializer.save()
         log_audit_action(request, details={"email": user.email}, user=user, action='register', success=True)  # Log the registration action
-        send_registration_email(user)  # Send registration email
+        # send_registration_email(user)  # Send registration email
         return Response({'message': 'User registered successfully'}, status=201)
     else:
         log_audit_action(
@@ -81,7 +81,7 @@ class LoginUserView(generics.GenericAPIView):
         # Log the successful login action
         log_audit_action(request, user=user, action='login', details={'ip_address': request.META.get('REMOTE_ADDR')}, success=True)
         # Send a login notification email
-        send_login_notification_email(user, request)
+        # send_login_notification_email(user, request)
         return Response({
             'refresh': str(refresh),
             'access': str(refresh.access_token),

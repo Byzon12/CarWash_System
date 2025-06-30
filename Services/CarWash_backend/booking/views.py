@@ -7,8 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Q
 from .models import Tenant, Service, Booking, CustomerProfile
-from .serializer import BookingCreateSerializer
-from .payment_gateways.mpesa import lipa_na_mpesa
+from .serializer import BookingCreateSerializer, BookingUpdateSerializer, BookingDetailSerializer
 from .payment_gateways.paypal import initiate_paypal_payment
 from .payment_gateways.visa import initiate_visa_payment
 from django.http import JsonResponse
@@ -39,7 +38,33 @@ class BookingCreateView(generics.CreateAPIView):
             raise serializers.ValidationError({"error": "No CustomerProfile associated with this user."})
 
         serializer.save(customer=customer_profile)
+        
+        
+class BookingUpdateView(generics.UpdateAPIView):
+    """
+    Update an existing booking.
+    Only the booking date, status, payment status, and payment reference can be updated.
+    """
+    serializer_class = BookingUpdateSerializer
+    permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        customer_profile = self.request.user.Customer_profile
+        return Booking.objects.filter(customer=customer_profile).order_by('-created_at')
+
+    def perform_update(self, serializer):
+        serializer.save()
+        
+class BookingListView(generics.ListAPIView):
+    """
+    List all bookings for the authenticated customer.
+    """
+    serializer_class = BookingDetailSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        customer_profile = self.request.user.Customer_profile
+        return Booking.objects.filter(customer=customer_profile).order_by('-created_at')
 
 
 

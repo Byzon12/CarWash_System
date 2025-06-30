@@ -214,7 +214,7 @@ class BookingAdmin(admin.ModelAdmin):
     """
     Admin interface for Booking model.
     """
-    list_display = ('location', 'customer', 'booking_date', 'status', 'payment_status', 'amount', 'created_at', 'updated_at')
+    list_display = ('location', 'customer', 'booking_date', 'status', 'payment_status', 'amount', 'id', 'updated_at')
     search_fields = ('customer','status')
     list_filter = ('status', 'payment_status', 'created_at')
     

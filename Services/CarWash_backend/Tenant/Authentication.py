@@ -11,10 +11,13 @@ class TenantAuthentication(JWTAuthentication):
     It checks if the user is a tenant and raises an error if not.
     """
     def get_user(self, validated_token):
+        
         try:
             user_id = validated_token['user_id']
             user = Tenant.objects.get(id=user_id)
         except (KeyError, Tenant.DoesNotExist):
             return None
         return user
-
+        
+       
+      
