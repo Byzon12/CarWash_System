@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Q
 from .models import Tenant, Service, Booking, CustomerProfile
-from .serializer import BookingCreateSerializer, BookingUpdateSerializer, BookingDetailSerializer
+from .serializer import BookingCreateSerializer, BookingUpdateSerializer, BookingDetailSerializer, BookingCancellationSerializer
 from .payment_gateways.paypal import initiate_paypal_payment
 from .payment_gateways.visa import initiate_visa_payment
 from django.http import JsonResponse
@@ -66,6 +66,22 @@ class BookingListView(generics.ListAPIView):
         customer_profile = self.request.user.Customer_profile
         return Booking.objects.filter(customer=customer_profile).order_by('-created_at')
 
+
+#booking cancellation view
+class BookingCancellationView(generics.UpdateAPIView):
+    """
+    Cancel an existing booking.
+    Only bookings that are not yet paid can be cancelled.
+    """
+    serializer_class = BookingCancellationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        customer_profile = self.request.user.Customer_profile
+        return Booking.objects.filter(customer=customer_profile, payment_status='pending').order_by('-created_at')
+
+    def perform_destroy(self, instance):
+        instance.delete()
 
 
 """

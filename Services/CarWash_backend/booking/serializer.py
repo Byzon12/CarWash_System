@@ -233,3 +233,29 @@ class BookingDetailSerializer(serializers.ModelSerializer):
         if obj.booking_date and obj.location_service:
             return obj.booking_date + obj.location_service.duration
         return None
+    
+    
+    #serializer to handle booking cancellation
+class BookingCancellationSerializer(serializers.ModelSerializer):
+    """
+    Serializer for cancelling a booking.
+    This serializer allows cancelling a booking by updating its status to 'cancelled'.
+    It does not allow changing any other fields.
+    """
+    class Meta:
+        model = Booking
+        fields = ['status']
+        read_only_fields = ['customer', 'location', 'location_service', 'booking_date', 'amount', 'payment_method', 'is_prepaid']
+
+    def validate(self, data):
+        """Validate the cancellation request."""
+        instance = self.instance
+        if instance.status in ['cancelled', 'completed']:
+            raise serializers.ValidationError(_("Cannot cancel a booking that is already cancelled or completed."))
+        return data
+
+    def update(self, instance, validated_data):
+        """Update the booking status to 'cancelled'."""
+        instance.status = 'cancelled'
+        instance.save()
+        return instance

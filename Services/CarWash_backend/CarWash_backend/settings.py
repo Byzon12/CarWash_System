@@ -232,3 +232,14 @@ DEFAULT_FROM_EMAIL = 'byzoneochieng@gmail.com'
 
 
 # 'django_tenants.middleware.TenantMiddleware' can be added to the main MIDDLEWARE list above if needed.
+
+
+# settings.py
+
+# M-Pesa settings
+MPESA_CONSUMER_KEY = os.environ.get('MPESA_CONSUMER_KEY', 'rLQ2D5DBhGoyHwgrw15dGa0U0V3sUFvO0oGhjMaPpJGy7qKE')
+MPESA_CONSUMER_SECRET = os.environ.get('MPESA_CONSUMER_SECRET', 'LwXCBI1nRLDps9Ta5Zf1GgcQGRn5hZG50xILRwUP62DtyAGszGXy4nfxZoIMt9DY')
+MPESA_SHORT_CODE = os.environ.get('MPESA_SHORT_CODE', '174379')
+MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919')
+MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', 'https://mydomain.com/api/mpesa-callback/')  # Must be HTTPS
+MPESA_BASE_URL = os.environ.get('MPESA_BASE_URL', 'https://sandbox.safaricom.co.ke')
