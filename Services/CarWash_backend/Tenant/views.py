@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken,TokenError  # This import is used to generate JWT tokens for user authentication
 from .email import send_tenant_profile_update_email
 from Location.models import Location, Service, LocationService
+from Staff.models import StaffProfile, StaffRole
 
 #api view to handle tenant login with the username and password
 class TenantLoginView(generics.GenericAPIView):
@@ -126,7 +127,7 @@ class ListEmployeeView(generics.ListAPIView):
 
     def get_queryset(self):
         tenant = self.request.user  # Assuming the user is a tenant
-        return Employee.objects.filter(tenant=tenant)  # Filter employees by tenant
+        return StaffProfile.objects.filter(tenant=tenant)  # Filter employees by tenant
 
     #view to to retrieve, create and update the salary of an employee and a sign roles
 class CreateEmployeeSalaryView(generics.CreateAPIView):
@@ -140,7 +141,7 @@ class CreateEmployeeSalaryView(generics.CreateAPIView):
 
     def get_queryset(self):
         tenant = self.request.user  # Assuming the user is a tenant
-        return EmployeeRole.objects.filter(tenant=tenant)  # Filter employee roles by tenant
+        return StaffRole.objects.filter(tenant=tenant)  # Filter employee roles by tenant
 
     def perform_create(self, serializer):
         tenant = self.request.user  # Assuming the user is a tenant
@@ -161,10 +162,9 @@ class DeleteEmployeeView(generics.DestroyAPIView):
         tenant = self.request.user  # Assuming the user is a tenant
        
         try:
-            
-            employee = Employee.objects.get(pk=pk, tenant=tenant)
+            employee = StaffProfile.objects.get(pk=pk, tenant=tenant)
             return employee
-        except Employee.DoesNotExist:
+        except StaffProfile.DoesNotExist:
             return None
 
     # Method to delete an employee
@@ -187,9 +187,9 @@ class DeactivateEmployeeView(generics.DestroyAPIView):
         pk = self.kwargs.get('pk')
         tenant = self.request.user  # Assuming the user is a tenant
         try:
-            employee = Employee.objects.get(pk=pk, tenant=tenant)
+            employee = StaffProfile.objects.get(pk=pk, tenant=tenant)
             return employee
-        except Employee.DoesNotExist:
+        except StaffProfile.DoesNotExist:
             return None
 
     def delete(self, request, *args, **kwargs):
@@ -211,9 +211,9 @@ class ActivateEmployeeView(generics.UpdateAPIView):
         pk = self.kwargs.get('pk')
         tenant = self.request.user  # Assuming the user is a tenant
         try:
-            employee = Employee.objects.get(pk=pk, tenant=tenant)
+            employee = StaffProfile.objects.get(pk=pk, tenant=tenant)
             return employee
-        except Employee.DoesNotExist:
+        except StaffProfile.DoesNotExist:
             return None
 
     def put(self, request, *args, **kwargs):

@@ -1,9 +1,9 @@
 
 from django.contrib import admin
 from Tenant.models import EmployeeRole, TenantProfile,Tenant, Employee,EmployeeRole
-from Location.models import Location, Service, LocationService
 from booking.models import Booking
-
+from Staff.models import StaffProfile,StaffRole
+from Location.models import Location, Service, LocationService
 
 
 from .models import CustomerProfile, AuditLog
@@ -83,50 +83,7 @@ class TenantProfileAdmin(admin.ModelAdmin):
 
 #employee admin
 
-@admin.register(Employee)
-class EmployeeAdmin(admin.ModelAdmin):
-    """Admin interface for employee model. """
-    list_display = ('id','full_name', 'work_email', 'phone_number', 'role', 'get_role_salary', 'created_at', 'updated_at')
-    search_fields = ('tenant__name', 'full_name', 'work_email', 'phone_number')
 
-#custom method to get role salary for admin display
-    def get_role_salary(self, obj):
-        if obj.role:
-            return obj.role.salary
-        return None
-    get_role_salary.short_description = 'Salary'
-    def has_add_permission(self, request):
-        """
-        Disable the add permission for Employee.
-        """
-        return False  # Allow adding employees
-    def has_change_permission(self, request, obj=None):
-        """
-        Disable the change permission for Employee.
-        """
-        return False
-    def has_delete_permission(self, request, obj=None):
-        """
-        Disable the delete permission for Employee.
-        """
-        return False
-
-    #admin site to register employee salary and roles
-    
-@admin.register(EmployeeRole)
-class EmployeeRoleAdmin(admin.ModelAdmin):
-    """
-    Admin interface for EmployeeRole model.
-    """
-    list_display = ('role_type', 'description', 'salary')
-    list_filter = ('role_type',)
-    search_fields = ('role_type',)
-
-    def has_add_permission(self, request):
-        """
-        Disable the add permission for EmployeeRole.
-        """
-        return  False
     
     
 # Registering Location model in the admin interface
@@ -233,3 +190,79 @@ class BookingAdmin(admin.ModelAdmin):
         Disable the delete permission for Booking.
         """
         return False
+    
+# registering admin site for staff profile
+@admin.register(StaffProfile)
+class StaffProfileAdmin(admin.ModelAdmin):
+    """
+    Admin interface for StaffProfile model.
+    """
+    list_display = ('id','username', 'work_email', 'phone_number', 'role', 'get_role_salary')
+    search_fields = ('tenant__name', 'full_name', 'work_email', 'phone_number')
+
+#custom method to get role salary for admin display
+    def get_role_salary(self, obj):
+        if obj.role:
+            return obj.role.salary
+        return None
+    get_role_salary.short_description = 'Salary'
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for Employee.
+        """
+        return True # Allow adding employees
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for Employee.
+        """
+        return True
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for Employee.
+        """
+        return True
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for StaffProfile.
+        """
+        return True
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for StaffProfile.
+        """
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for StaffProfile.
+        """
+        return True
+    
+# Registering StaffRole model in the admin interface
+@admin.register(StaffRole)
+class StaffRoleAdmin(admin.ModelAdmin):
+    """
+    Admin interface for StaffRole model.
+    """
+    list_display = ('role_type', 'description', 'salary')
+    list_filter = ('role_type',)
+    search_fields = ('role_type',)
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for StaffRole.
+        """
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for StaffRole.
+        """
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for StaffRole.
+        """
+        return True

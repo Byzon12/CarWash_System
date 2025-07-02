@@ -2,6 +2,7 @@
 from ctypes import FormatError
 from email import message
 from os import read
+import re
 from urllib import request
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
@@ -10,6 +11,7 @@ from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
 from Tenant.models import Employee, TenantProfile, Tenant, EmployeeRole
 from django.contrib.auth.hashers import check_password
+from Staff.models import StaffProfile, StaffRole
 
 
 # TenantProfile Serializer
@@ -207,7 +209,7 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
     
 
     class Meta:
-        model = EmployeeRole
+        model = StaffRole
         fields = ['role_type', 'description', 'salary']
 
         #method to validate the role type and description
@@ -226,7 +228,7 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         role_type = validated_data.get('role_type')
         salary = self.salary_map.get(role_type, 0.00)
-        return EmployeeRole.objects.create(
+        return StaffRole.objects.create(
             role_type=role_type,
             description=validated_data.get('description', ''),
             salary=salary
@@ -283,6 +285,15 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
             'max_length': _('Phone number cannot exceed 15 characters.')
         }
     )
+    
+    password = serializers.CharField(
+        required=True,
+        write_only=True,
+        style={'input_type': 'password'},
+        error_messages={
+            'blank': _('Password cannot be blank.'),
+        }
+    )
 
     role = serializers.SerializerMethodField()
 
@@ -303,31 +314,34 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     
     
     class Meta:
-        model = Employee
+        model = StaffProfile
         fields = '__all__'
         read_only_fields = ('tenant', 'created_at', 'updated_at', 'is_active')
         
     #method to validate the username
     def validate_username(self, value):
-        if Employee.objects.filter(username=value).exists():
+        if StaffProfile.objects.filter(username=value).exists():
             raise serializers.ValidationError(_('Username already exists.'))
         return value
     def validate(self, data):
         """Custom validation to ensure email and phone number are unique."""
+        password = data.get('password')
+        if not password:
+            raise serializers.ValidationError({'password': _('Password is required.')})
         email = data.get('email')
         phone_number = data.get('phone_number')
 
-        if Employee.objects.filter(email=email).exists():
+        if StaffProfile.objects.filter(email=email).exists():
             raise serializers.ValidationError({'email': _('Email already exists.')})
 
-        if Employee.objects.filter(phone_number=phone_number).exists():
+        if StaffProfile.objects.filter(phone_number=phone_number).exists():
             raise serializers.ValidationError({'phone_number': _('Phone number already exists.')})
 
         return data
     
     def create(self, validated_data):
         """Create a new employee"""
-        employee = Employee.objects.create(**validated_data)
+        employee = StaffProfile.objects.create(**validated_data)
 
         return employee
     

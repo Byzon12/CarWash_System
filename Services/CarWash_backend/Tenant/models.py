@@ -5,6 +5,7 @@ from Users.models import User
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 from Users import models as Users
+from django.core.exceptions import ValidationError
 
 
 
@@ -73,72 +74,62 @@ class TenantProfile(models.Model):
     class Meta:
         verbose_name = 'Tenant Profile'
         verbose_name_plural = 'Tenant Profiles'
-        
-    #comment
-    #
-class EmployeeRole(models.Model):
- 
-    ROLE_CHOICES = [
-        ('manager', 'Manager'),
-        ('staff', 'Staff'),
-        ('cleaner', 'Cleaner'),
-        ('security', 'Security'),
-        ('receptionist', 'Receptionist'),
-      
+
+    #model to hanldle Task creation and assignmening task
+class Task(models.Model):
+    # status choices
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
     ]
-
-
-    SALARY_MAP = {
-        'manager': 5000.00,
-        'staff': 3000.00,
-        'cleaner': 2000.00,
-        'security': 2500.00,
-        'receptionist': 3500.00,
-    }
     
-    """Model representing different roles an employee can have within a tenant."""
-    role_type = models.CharField(max_length=50, choices=ROLE_CHOICES, default='staff')
+    PRIORITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ]
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
+    title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-  
-    def save(self, *args, **kwargs):
-        """Override save method to set the salary based on role type."""
-        if not self.salary:
-            self.salary = self.SALARY_MAP.get(self.role_type, 0.00)
-        super().save(*args, **kwargs)
-
-    def __str__(self):
-        return f"{self.role_type} "
-    
-# creating employee model for tenant
-class Employee(models.Model):
-
-    
-    """Model representing an employee of a tenant.
-    An employee is associated with only one tenant and has their own portal profile."""
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='employees')
-    location = models.ForeignKey('Location.Location', on_delete=models.SET_NULL, related_name='employees', null=True, blank=True)
-    username = models.CharField(max_length=150, unique=True, blank=True, null=True)
-    work_email= models.EmailField(max_length=254, unique=True)
-    full_name = models.CharField(max_length=100)
-    
-    role = models.ForeignKey(EmployeeRole, on_delete=models.SET_NULL, null=True, blank=False, related_name='employees')
-    phone_number = models.CharField(max_length=15, blank=True, null=True)
-    email = models.EmailField(max_length=254, blank=True, null=True)
-    is_active = models.BooleanField(default=True)
+    assigned_to = models.ForeignKey('Staff.StaffProfile', on_delete=models.SET_NULL, related_name='tasks', null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
+    due_date = models.DateTimeField(blank=True, null=True)  
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
-    
-    # clean method to ensure location is set to the employee's tenant location
-    def clean(self):
-        #ensure that the location belongs to the same tenanta as the employee
-        if self.location and self.tenant:
-            if self.location.tenant != self.tenant:
-                raise ValueError("Location must belong to the same tenant as the employee.")
-    def save(self, *args, **kwargs):
-        self.clean()  # Call the clean method to validate the location
-        super().save(*args, **kwargs)  # Call the parent save method    
 
+    #override clean function to ensure due_date is not in the past
+    def clean(self):
+        """
+        handle custom validation for Task model.
+        This method checks if the due date is in the past and if the assigned staff belongs to
+        the same tenant as the task.
+        Raises ValidationError if any validation fails.
+        :raises ValidationError: If due date is in the past or assigned staff does not belong to the same tenant.
+        """
+        
+        super().clean()
+        if self.due_date and self.due_date < timezone.now():
+            raise ValidationError("Due date cannot be in the past.")
+        
+        if self.assigned_to and self.assigned_to.tenant != self.tenant:
+            raise ValidationError("Assigned staff must belong to the same tenant.")
+        
+        def save(self, *args, **kwargs):
+            """
+            Override save method to ensure clean method is called before saving.
+            """
+            self.clean()
+            super().save(*args, **kwargs)
     def __str__(self):
-        return f"{self.full_name} - {self.tenant.name}"
+        return f"Task: {self.title} (Status: {self.status})"
+    
+    
+    class Meta:
+        verbose_name = 'Task'
+        verbose_name_plural = 'Tasks'
+        ordering = ['-created_at']
+        
+        

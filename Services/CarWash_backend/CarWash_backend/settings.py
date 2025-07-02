@@ -38,7 +38,7 @@ ALLOWED_HOSTS = ["*"]  # Allow all hosts for development; change in production
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+      #  "rest_framework_simplejwt.authentication.JWTAuthentication",
         "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
        
         "knox.auth.TokenAuthentication",  # Knox authentication
@@ -110,6 +110,7 @@ INSTALLED_APPS = [
     'Location.apps.LocationConfig',  # Location management app
     'rest_framework_simplejwt.token_blacklist',  # Token blacklist for JWT
     "booking",  # Booking app
+    "Staff.apps.StaffConfig",  # Staff management app
 ]
 
 MIDDLEWARE = [

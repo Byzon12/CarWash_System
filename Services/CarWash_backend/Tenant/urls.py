@@ -15,7 +15,7 @@ urlpatterns = [
 #path for creating employee
 #listing employees is not allowed in this case
   path('employees/list/', ListEmployeeView.as_view(), name='list-employee-view'),
-  path('employees/update/', CreateEmployeeSalaryView.as_view(), name='update-employee-salary-view'),
+  path('employees/update/<int:pk>/', CreateEmployeeSalaryView.as_view(), name='update-employee-salary-view'), #provide location pk in the request data to update employee salary
   path('employees/', CreateEmployeeView.as_view(), name='create-employee-view'),
   
   #deleting an employee 
