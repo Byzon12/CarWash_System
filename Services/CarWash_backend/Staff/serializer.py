@@ -4,7 +4,7 @@ from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.hashers import make_password
 from .models import StaffProfile
-from Tenant.models import Employee, EmployeeRole
+from Tenant.models import Tenant, Task
 from  django.contrib.auth.hashers import check_password
 from django.contrib.auth import authenticate
 
@@ -112,4 +112,28 @@ class StaffLoginSerializer(serializers.ModelSerializer):
         This method returns the staff profile instance if the credentials are valid.
         """
         return self.validated_data.get('staff_profile')
+    
+    
+#serializer to hanle car check-in items
+class CarCheckInItemSerializer(serializers.ModelSerializer):
+    """
+    Serializer for car check-in items.
+    This serializer is used to validate and serialize car check-in items associated with a task.
+    """
+    class Meta:
+        model = Task
+        fields = ['task', 'item_name']
+        read_only_fields = ['task']
+    
+    def validate(self, attrs):
+        """
+        Validate the car check-in item.
+        This method checks if the task exists and if the item name is provided.
+        """
+        item_name = attrs.get('item_name')
+        
+        if not item_name:
+            raise serializers.ValidationError(_('Item name is required.'))
+
+        return attrs
     

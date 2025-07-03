@@ -1,10 +1,10 @@
 
 from django.contrib import admin
-from Tenant.models import EmployeeRole, TenantProfile,Tenant, Employee,EmployeeRole
+from Tenant.models import TenantProfile,Tenant, Task
 from booking.models import Booking
 from Staff.models import StaffProfile,StaffRole
 from Location.models import Location, Service, LocationService
-
+from Staff.models import StaffProfile, StaffRole, CarCheckInItem
 
 from .models import CustomerProfile, AuditLog
 
@@ -264,5 +264,62 @@ class StaffRoleAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """
         Disable the delete permission for StaffRole.
+        """
+        return True
+
+
+#registering Task model in the admin interface
+@admin.register(Task)
+class TaskAdmin(admin.ModelAdmin):
+    """
+    Admin interface for Task model.
+    """
+    list_display = ('booking_made', 'location', 'due_date', 'assigned_to', 'status', 'tenant')
+    search_fields = ('due_date', 'description', 'assigned_to__full_name')
+    list_filter = ('status', 'due_date')
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for Task.
+        """
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for Task.
+        """
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for Task.
+        """
+        return True
+    
+# Registering CarCheckInItem model in the admin interface
+@admin.register(CarCheckInItem)
+class CarCheckInItemAdmin(admin.ModelAdmin):
+    """
+    Admin interface for CarCheckInItem model.
+    """
+    list_display = ('task', 'item_name', 'created_at', 'updated_at')
+    search_fields = ('task__title', 'item_name')
+    list_filter = ('created_at', 'updated_at')
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for CarCheckInItem.
+        """
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for CarCheckInItem.
+        """
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for CarCheckInItem.
         """
         return True

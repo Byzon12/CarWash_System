@@ -9,9 +9,12 @@ from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
-from Tenant.models import Employee, TenantProfile, Tenant, EmployeeRole
+from Staff.serializer import CarCheckInItemSerializer
+from Tenant.models import TenantProfile, Tenant
 from django.contrib.auth.hashers import check_password
 from Staff.models import StaffProfile, StaffRole
+from .models import Task
+
 
 
 # TenantProfile Serializer
@@ -354,3 +357,83 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
                 'salary_role': obj.role.salary_role,
                 'description': obj.role.description
             }   
+            
+            
+#class serializer to handle  task creation
+from booking.serializer import BookingSerializer
+from Location.serializer import LocationSerializer, LocationServiceSerializer
+from Staff.serializer import StaffProfileSerializer
+from .models import Task, Location, Booking
+
+class TaskSerializer(serializers.ModelSerializer):
+    #read_only_fields = ('tenant', 'location', 'created_at', 'updated_at')
+    assigned_to = serializers.CharField(source='assigned_to.username', read_only=True)
+    location = serializers.CharField(source='location.name', read_only=True)
+    tenant = serializers.CharField(source='tenant.name', read_only=True)
+    booking_made = serializers.CharField(source='booking_made.id', read_only=True)
+    booking_location_service_services = serializers.SerializerMethodField(read_only=True)  # <-- Add this line
+
+#write only fields
+    assigned_to_id = serializers.PrimaryKeyRelatedField(
+        source='assigned_to',
+        queryset=StaffProfile.objects.all(),
+        write_only=True,
+        required=True  # Make assigned_to_id required for task creation
+    )
+    location_id = serializers.PrimaryKeyRelatedField(
+        source='location',
+        queryset=Location.objects.all(),
+        write_only=True,
+        required=True
+    )
+    booking_id = serializers.PrimaryKeyRelatedField(
+        source='booking_made',
+        queryset=Booking.objects.all(),
+        write_only=True,
+        required=True  # Make booking_id required for task creation
+    )
+    #display booking names in more readable format
+    booking_location_service = serializers.SerializerMethodField(read_only=True)
+    def get_booking_location_service(self, obj):
+        """Return the booking name for display purposes."""
+        if obj.booking_made:
+            return {
+                'booking_id': obj.booking_made.id,
+                'booking_location_service': obj.booking_made.location_service.name if obj.booking_made.location_service else None,
+                'booking_location': obj.booking_made.location.name if obj.booking_made.location else None
+                }
+            
+        return None
+    
+    #method to get services in location_service
+    def get_booking_location_service_services(self, obj):
+        """return the services in the booking location service."""
+        if obj.booking_made and obj.booking_made.location_service:
+            service = obj.booking_made.location_service.service.all()
+            if service is not None:
+                return [service.name for service in service]
+        return []
+
+    class Meta:
+        model = Task
+        fields = [
+            'id', 'tenant', 'location', 'booking_made', 'description', 
+            'assigned_to', 'status', 'priority', 'due_date', 
+            'created_at', 'updated_at', 
+            'assigned_to_id', 'location_id', 'booking_id',
+             'booking_location_service' , 'booking_location_service_services'
+        ]
+        
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
+
+    def validate(self, data):
+        #check if there is task with the same booking_made
+        if Task.objects.filter(booking_made=data.get('booking_made')).exists():
+            raise serializers.ValidationError({'booking_made': _('Task with this booking already exists.')})
+        #check if the 
+
+        return data
+
+    def create(self, validated_data):
+       """Create a new task instance."""
+       return Task.objects.create(**validated_data)

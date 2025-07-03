@@ -39,7 +39,8 @@ ALLOWED_HOSTS = ["*"]  # Allow all hosts for development; change in production
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
       #  "rest_framework_simplejwt.authentication.JWTAuthentication",
-        "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
+      #  "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
+        "Staff.Authentication.StaffAuthentication",  # Custom staff authentication
        
         "knox.auth.TokenAuthentication",  # Knox authentication
         

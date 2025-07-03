@@ -2,7 +2,7 @@ from venv import create
 from django.db import models
 from django.contrib.auth.hashers import make_password
 from django.utils import timezone
-from Tenant.models import Tenant, EmployeeRole
+from Tenant.models import Tenant, Task
 from django.contrib.auth.models import User
 
 
@@ -57,6 +57,15 @@ class StaffProfile(models.Model):
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     email = models.EmailField(max_length=254, blank=True, null=True)
     
+    #property dicorator to authenitcate the staff profile
+    @property
+    def is_authenticated(self):
+        """
+        Check if the staff profile is authenticated.
+        This method returns True as all staff profiles are considered authenticated.
+        """
+        return True
+    
     
     # clean method to ensure location is set to the employee's tenant location
     def clean(self):
@@ -86,7 +95,7 @@ class CarCheckInItem(models.Model):
     Model representing a car check-in item.
     This model is used to track items associated with a car during check-in.
     """
-    task= models.ForeignKey('Task', on_delete=models.CASCADE, related_name='checkin_items')
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='checkin_items')
     item_name = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

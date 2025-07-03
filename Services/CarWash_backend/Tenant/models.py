@@ -9,6 +9,8 @@ from django.core.exceptions import ValidationError
 
 
 
+
+
 # Create your models here.
 class Tenant(models.Model):
     #tenant is not associated with a user, it is a separate entity
@@ -76,7 +78,10 @@ class TenantProfile(models.Model):
         verbose_name_plural = 'Tenant Profiles'
 
     #model to hanldle Task creation and assignmening task
+from booking.models import Booking
+from Location.models import Location
 class Task(models.Model):
+
     # status choices
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -91,7 +96,8 @@ class Task(models.Model):
         ('high', 'High'),
     ]
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
-    title = models.CharField(max_length=255)
+    location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
+    booking_made = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     assigned_to = models.ForeignKey('Staff.StaffProfile', on_delete=models.SET_NULL, related_name='tasks', null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -111,20 +117,27 @@ class Task(models.Model):
         """
         
         super().clean()
-        if self.due_date and self.due_date < timezone.now():
-            raise ValidationError("Due date cannot be in the past.")
+        
+        if self.location and self.location.tenant != self.tenant:
+            raise ValidationError("Location must belong to the same tenant as the task.")
         
         if self.assigned_to and self.assigned_to.tenant != self.tenant:
             raise ValidationError("Assigned staff must belong to the same tenant.")
+        if self.booking_made and self.booking_made.location.tenant != self.location.tenant:
+            raise ValidationError("Booking must belong to the same tenant as the task.")
         
-        def save(self, *args, **kwargs):
+        
+    def save(self, *args, **kwargs):
             """
             Override save method to ensure clean method is called before saving.
+            Also, set due_date to match booking's time_slot_end if booking is set.
             """
+            if self.booking_made:
+                self.due_date = self.booking_made.time_slot_end
             self.clean()
             super().save(*args, **kwargs)
     def __str__(self):
-        return f"Task: {self.title} (Status: {self.status})"
+        return f"Task: {self.description} (Status: {self.status})"
     
     
     class Meta:

@@ -3,7 +3,6 @@ from django.dispatch import receiver
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 
-from Tenant.models import Employee
 from Staff.models import StaffProfile
 
 User = get_user_model()

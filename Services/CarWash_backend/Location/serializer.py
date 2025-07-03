@@ -6,7 +6,7 @@ import re
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Q
-from Tenant.models import Employee, TenantProfile, Tenant, EmployeeRole
+from Staff.models import StaffProfile, StaffRole, CarCheckInItem
 from django.contrib.auth.hashers import check_password
 from Location.models import Location, Service, LocationService
 

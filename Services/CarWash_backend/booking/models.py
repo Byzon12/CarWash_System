@@ -1,5 +1,5 @@
 from django.db import models
-from Tenant.models import TenantProfile, Tenant, Employee
+from Tenant.models import TenantProfile, Tenant
 from Location.models import Location, LocationService, Service
 from Users.models import CustomerProfile
 

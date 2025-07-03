@@ -3,7 +3,7 @@ from django.conf import settings
 from django.urls import path
 from django.conf.urls.static import static
 #from .views import TenantProfileListCreateView
-from .views import TenantProfileView, TenantLoginView, TenantLogoutView,TenantProfileDetailsView ,CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView, DeactivateEmployeeView,ActivateEmployeeView
+from .views import TenantProfileView, TenantLoginView, TenantLogoutView,TenantProfileDetailsView ,CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView, DeactivateEmployeeView,ActivateEmployeeView, TaskCreateView
 
 urlpatterns = [
   path('login/', TenantLoginView.as_view(), name='tenant-login-view'),
@@ -22,6 +22,9 @@ urlpatterns = [
  path('employees/delete/<int:pk>/', DeleteEmployeeView.as_view(), name='delete-employee-view'),
   path('employees/deactivate/<int:pk>/', DeactivateEmployeeView.as_view(), name='deactivate-employee-view'),
   path('employees/activate/<int:pk>/', ActivateEmployeeView.as_view(), name='activate-employee-view'),
+  
+  #path for creating tasks
+  path('tasks/create/', TaskCreateView.as_view(), name='create-task-view'),
 
 ] 
 

@@ -7,8 +7,8 @@ from django.forms import ValidationError
 from rest_framework import generics, permissions, serializers
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.contrib.auth.models import User
-from .models import Employee, EmployeeRole, Tenant, TenantProfile
-from .serializer import TenantProfileSerializer, TenantLoginSerializer, EmployeeRoleSalarySerializer, CreateEmployeeSerializer
+from .models import Tenant, TenantProfile, Task
+from .serializer import TenantProfileSerializer, TenantLoginSerializer, EmployeeRoleSalarySerializer, CreateEmployeeSerializer, TaskSerializer
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken,TokenError  # This import is used to generate JWT tokens for user authentication
@@ -224,3 +224,17 @@ class ActivateEmployeeView(generics.UpdateAPIView):
         employee.is_active = True
         employee.save()
         return Response({'detail': _('Employee activated successfully.')}, status=200)
+    
+    
+#the views class handles the creation of tasks for a tenant forthe login tenant
+class TaskCreateView(generics.CreateAPIView):
+    serializer_class = TaskSerializer
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to create tasks
+    
+    def get_queryset(self):
+        tenant = self.request.user  # Assuming the user is a tenant
+        return Task.objects.filter(tenant=tenant)  # Filter tasks by tenant
+
+    def perform_create(self, serializer):
+        tenant = self.request.user  # Assuming the user is a tenant
+        serializer.save(tenant=tenant)

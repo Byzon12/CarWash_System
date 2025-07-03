@@ -20,6 +20,23 @@ from .models import Location, LocationService, Booking
 # Import models
 from booking.models import Booking
 
+class BookingSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the Booking model.
+    """
+    class Meta:
+        model = Booking
+        fields = '__all__'
+        read_only_fields = [
+            'customer', 
+            'location', 
+            'location_service', 
+            'status', 
+            'payment_status', 
+            'payment_reference', 
+            'created_at', 
+            'updated_at'
+        ]
 
 # serialier clas to create a booking
 class BookingCreateSerializer(serializers.ModelSerializer):
