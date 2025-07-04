@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.urls import path
-from  .views import StaffLoginView, StaffRegistrationView, StaffTaskListView, StaffProfileUpdateView, StaffLogoutView
+from  .views import StaffLoginView, StaffRegistrationView, StaffTaskListView, StaffProfileUpdateView, StaffLogoutView,staffDashboardView
 
 urlpatterns = [
     #staff urls
@@ -11,4 +11,7 @@ urlpatterns = [
     
     #task urls
     path('tasks-list/', StaffTaskListView.as_view(), name='staff_task_list'),
+    
+    #staffDashboard
+    path('dashboard/', staffDashboardView.as_view(), name='staff_dashboard'),
 ]

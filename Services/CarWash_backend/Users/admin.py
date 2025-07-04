@@ -4,7 +4,7 @@ from Tenant.models import TenantProfile,Tenant, Task
 from booking.models import Booking
 from Staff.models import StaffProfile,StaffRole
 from Location.models import Location, Service, LocationService
-from Staff.models import StaffProfile, StaffRole, CarCheckInItem
+from Staff.models import StaffProfile, StaffRole,Staff
 
 from .models import CustomerProfile, AuditLog
 
@@ -191,14 +191,30 @@ class BookingAdmin(admin.ModelAdmin):
         """
         return False
     
+    #registering Staff
+@admin.register(Staff)
+class StaffAdmin(admin.ModelAdmin):
+    """
+    Admin interface for Staff model.
+    """
+    list_display = ('email', 'tenant')
+    search_fields = ('email', 'phone_number')
+    list_filter = ('tenant',)
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for Staff.
+        """
+        return False
+    
 # registering admin site for staff profile
 @admin.register(StaffProfile)
 class StaffProfileAdmin(admin.ModelAdmin):
     """
     Admin interface for StaffProfile model.
     """
-    list_display = ('id','username', 'work_email', 'phone_number', 'role', 'get_role_salary')
-    search_fields = ('tenant__name', 'full_name', 'work_email', 'phone_number')
+    list_display = ('username', 'work_email', 'phone_number', 'role', 'get_role_salary')
+    search_fields = ('work_email', 'phone_number')
 
 #custom method to get role salary for admin display
     def get_role_salary(self, obj):
@@ -245,7 +261,7 @@ class StaffRoleAdmin(admin.ModelAdmin):
     """
     Admin interface for StaffRole model.
     """
-    list_display = ('role_type', 'description', 'salary')
+    list_display = ('id', 'role_type', 'description', 'salary')
     list_filter = ('role_type',)
     search_fields = ('role_type',)
 
@@ -296,30 +312,3 @@ class TaskAdmin(admin.ModelAdmin):
         """
         return True
     
-# Registering CarCheckInItem model in the admin interface
-@admin.register(CarCheckInItem)
-class CarCheckInItemAdmin(admin.ModelAdmin):
-    """
-    Admin interface for CarCheckInItem model.
-    """
-    list_display = ('task', 'item_name', 'created_at', 'updated_at')
-    search_fields = ('task__title', 'item_name')
-    list_filter = ('created_at', 'updated_at')
-
-    def has_add_permission(self, request):
-        """
-        Disable the add permission for CarCheckInItem.
-        """
-        return True
-
-    def has_change_permission(self, request, obj=None):
-        """
-        Disable the change permission for CarCheckInItem.
-        """
-        return True
-
-    def has_delete_permission(self, request, obj=None):
-        """
-        Disable the delete permission for CarCheckInItem.
-        """
-        return True

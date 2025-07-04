@@ -9,11 +9,10 @@ from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
-from Staff.serializer import CarCheckInItemSerializer
 from Tenant.models import TenantProfile, Tenant
 from django.contrib.auth.hashers import check_password
-from Staff.models import StaffProfile, StaffRole
-from .models import Task
+from Staff.models import StaffProfile, StaffRole,Staff
+from .models import Task, Location
 
 
 
@@ -79,7 +78,8 @@ class TenantProfileSerializer(serializers.ModelSerializer):
             raise ValidationError(_('Tenant must be set.'))
         validated_data['tenant'] = tenant
         return super().create(validated_data)
- #serializer method to handle  tenant existing profile update
+
+    #serializer method to handle  tenant existing profile update
     def update(self, instance, validated_data):
         """Update an existing tenant profile instance."""
         instance.business_name = validated_data.get('business_name', instance.business_name)
@@ -250,6 +250,7 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
 
 # serializer to handle employee creation
 class CreateEmployeeSerializer(serializers.ModelSerializer):
+
     ROLE_CHOICES = (
         ('manager', _('Manager')),
         ('staff', _('Staff')),
@@ -268,27 +269,32 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         }
     )
 
-    full_name = serializers.CharField(
-        max_length=100,
-        error_messages={
-            'blank': _('Full name cannot be blank.'),
-            'max_length': _('Full name cannot exceed 100 characters.')
-        }
-    )
+   
     email = serializers.EmailField(
         error_messages={
             'blank': _('Email cannot be blank.'),
             'invalid': _('Enter a valid email address.')
         }
     )
-    phone_number = serializers.CharField(
-        max_length=15,
+
+    username = serializers.CharField(
+        max_length=150,
+        min_length=3,
+        validators=[UnicodeUsernameValidator()],
         error_messages={
-            'blank': _('Phone number cannot be blank.'),
-            'max_length': _('Phone number cannot exceed 15 characters.')
+            'blank': _('Username cannot be blank.'),
+            'max_length': _('Username cannot exceed 150 characters.'),
+            'min_length': _('Username must be at least 3 characters long.')
         }
     )
-    
+
+    email = serializers.EmailField(
+        error_messages={
+            'blank': _('Email cannot be blank.'),
+            'invalid': _('Enter a valid email address.')
+        }
+    )
+
     password = serializers.CharField(
         required=True,
         write_only=True,
@@ -298,7 +304,33 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         }
     )
 
+    role_id = serializers.PrimaryKeyRelatedField(
+        source='role',
+        queryset=StaffRole.objects.all(),
+        write_only=True,  # Make role write-only for creation
+        error_messages={
+            'does_not_exist': _('Role does not exist.'),
+            'required': _('Role is required.')
+        }
+    )
+    location_id = serializers.PrimaryKeyRelatedField(
+        source='location',
+        queryset=Location.objects.all(),
+        write_only=True,  # Make location write-only for creation
+        error_messages={
+            'does_not_exist': _('Location does not exist.'),
+            'required': _('Location is required.')
+        }
+    )
+ 
     role = serializers.SerializerMethodField()
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ensure that role is not required during creation
+        request = self.context.get('request')
+        if request and hasattr(request, 'tenant'):
+            self.fields['location_id'].queryset = Location.objects.filter(tenant=request.tenant)
 
     def get_role(self, obj):
         if obj.role:
@@ -313,17 +345,24 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         required=False,  # Role is optional during creation
         allow_null=True,# Allow null value for role
         
-        
-    
-    
+    location = serializers.SerializerMethodField()
+
+    def get_location(self, obj):
+        if obj.location:
+            return {
+                'id': obj.location.id,
+                'name': obj.location.name
+            }
+        return None
+
     class Meta:
-        model = StaffProfile
+        model = Staff
         fields = '__all__'
         read_only_fields = ('tenant', 'created_at', 'updated_at', 'is_active')
         
     #method to validate the username
     def validate_username(self, value):
-        if StaffProfile.objects.filter(username=value).exists():
+        if Staff.objects.filter(username=value).exists():
             raise serializers.ValidationError(_('Username already exists.'))
         return value
     def validate(self, data):
@@ -332,19 +371,25 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         if not password:
             raise serializers.ValidationError({'password': _('Password is required.')})
         email = data.get('email')
-        phone_number = data.get('phone_number')
+       
 
-        if StaffProfile.objects.filter(email=email).exists():
+        if Staff.objects.filter(email=email).exists():
             raise serializers.ValidationError({'email': _('Email already exists.')})
+        
+        #check if the location_id if for the login tenant
+        location_id = data.get('location_id')
+        if location_id:
+            tenant = self.context['request'].tenant
+            if not TenantProfile.objects.filter(id=location_id, tenant=tenant).exists():
+                raise serializers.ValidationError({'location_id': _('Location does not belong to the current tenant.')})
 
-        if StaffProfile.objects.filter(phone_number=phone_number).exists():
-            raise serializers.ValidationError({'phone_number': _('Phone number already exists.')})
+        
 
         return data
     
     def create(self, validated_data):
         """Create a new employee"""
-        employee = StaffProfile.objects.create(**validated_data)
+        employee = Staff.objects.create(**validated_data)
 
         return employee
     

@@ -1,11 +1,13 @@
 from django.contrib.auth.hashers import make_password
 from django.db import models
 from test.test_reprlib import r
+
 from Users.models import User
 from django.utils import timezone
 from django.utils.safestring import mark_safe
 from Users import models as Users
 from django.core.exceptions import ValidationError
+
 
 
 
@@ -80,6 +82,7 @@ class TenantProfile(models.Model):
     #model to hanldle Task creation and assignmening task
 from booking.models import Booking
 from Location.models import Location
+from Staff.models import StaffProfile
 class Task(models.Model):
 
     # status choices
@@ -99,7 +102,7 @@ class Task(models.Model):
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
     booking_made = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
     description = models.TextField(blank=True, null=True)
-    assigned_to = models.ForeignKey('Staff.StaffProfile', on_delete=models.SET_NULL, related_name='tasks', null=True, blank=True)
+    assigned_to = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, related_name='tasks', null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES, default='medium')
     due_date = models.DateTimeField(blank=True, null=True)  

@@ -3,24 +3,20 @@ from django.dispatch import receiver
 from django.contrib.auth import get_user_model
 from django.contrib.auth.hashers import make_password
 
-from Staff.models import StaffProfile
+from Staff.models import StaffProfile, Staff
 
-User = get_user_model()
-"""
-@receiver(post_save, sender=Employee)
-@receiver(post_save, sender=Employee)
 
+
+@receiver(post_save, sender=Staff)
 def create_staff_profile(sender, instance, created, **kwargs):
     if created:
         # Create the auth user
         StaffProfile.objects.create(
-            tenant=instance.tenant,
+            staff=instance,
             location=instance.location,
             username=instance.username,
-            work_email=instance.work_email,
-            full_name=instance.full_name,
+            work_email=instance.email,
             role=instance.role,
-            phone_number=instance.phone_number,
             email=instance.email
         
-        )"""
+        )

@@ -1,12 +1,12 @@
 
-from os import write
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.contrib.auth.hashers import make_password
 from .models import StaffProfile
 from Tenant.models import Tenant, Task
 from  django.contrib.auth.hashers import check_password
-from django.contrib.auth import authenticate
+from .models import Staff
+
 
 
 
@@ -46,14 +46,14 @@ class StaffProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StaffProfile
-        fields = ['username', 'work_email', 'full_name', 'password', 'role', 'phone_number', 'email']
-        write_only_fields = ['password']
+        fields = ['username', 'work_email', 'role', 'phone_number', 'email']
+        
     
 
         
 
 # serializer class to handle staff login  using details from employee model
-class StaffLoginSerializer(serializers.ModelSerializer):
+class StaffLoginSerializer(serializers.Serializer):
     """
     Serializer for staff login.
     This serializer is used to validate the login credentials of a staff member.
@@ -75,9 +75,6 @@ class StaffLoginSerializer(serializers.ModelSerializer):
         }
     )
 
-    class Meta:
-        model = StaffProfile
-        fields = ['username', 'password']
         
     def validate(self, attrs):
         """
@@ -96,44 +93,28 @@ class StaffLoginSerializer(serializers.ModelSerializer):
         except StaffProfile.DoesNotExist:
             raise serializers.ValidationError(_('Invalid username or password.'))
 
-        
+        staff = staff_profile.staff
         # Check if the password is correct
-        if not check_password(password, staff_profile.password):
+        if not check_password(password, staff.password):
             raise serializers.ValidationError(_('Invalid username or password.'))
         #store for later use
-       
+
+        attrs['staff'] = staff
         attrs['staff_profile'] = staff_profile
 
         return attrs
     
-    def get_staff_profile(self):
-        """
-        Get the staff profile associated with the login credentials.
-        This method returns the staff profile instance if the credentials are valid.
-        """
-        return self.validated_data.get('staff_profile')
-    
-    
-#serializer to hanle car check-in items
-class CarCheckInItemSerializer(serializers.ModelSerializer):
-    """
-    Serializer for car check-in items.
-    This serializer is used to validate and serialize car check-in items associated with a task.
-    """
-    class Meta:
-        model = Task
-        fields = ['task', 'item_name']
-        read_only_fields = ['task']
-    
-    def validate(self, attrs):
-        """
-        Validate the car check-in item.
-        This method checks if the task exists and if the item name is provided.
-        """
-        item_name = attrs.get('item_name')
-        
-        if not item_name:
-            raise serializers.ValidationError(_('Item name is required.'))
+    def get_staff(self):
+        """Return the authenticated staff user."""
+        return self.validated_data.get('staff')
 
-        return attrs
+    def get_staff_profile(self):
+        """Return serialized staff profile data."""
+        staff_profile = self.validated_data.get('staff_profile')
+        if staff_profile:
+            return StaffProfileSerializer(staff_profile).data
+        return None
+    
+  
+
     

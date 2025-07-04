@@ -35,7 +35,7 @@ class TenantLoginView(generics.GenericAPIView):
         })
 # this to handle tenant logout
 class TenantLogoutView(generics.GenericAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]  # Allow only authenticated users to logout
     def post(self, request, *args, **kwargs):
         refresh_token = request.data.get('refresh')
         if not refresh_token:
