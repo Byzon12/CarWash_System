@@ -196,8 +196,9 @@ class PasswordChangeView(generics.UpdateAPIView):
         # Save the new password
         serializer.save()
         return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
-   
-    
+
+
+
 class ListUserView(generics.ListAPIView):
     """_summary_
 
@@ -211,6 +212,6 @@ class ListUserView(generics.ListAPIView):
     
     #logging the user listing action
     def list(self, request, *args, **kwargs):
-        log_audit_action(request, 'list_users')
+   #     log_audit_action(request, 'list_users')
         return super().list(request, *args, **kwargs)
     

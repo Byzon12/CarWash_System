@@ -23,7 +23,8 @@ urlpatterns = [
   path('employees/deactivate/<int:pk>/', DeactivateEmployeeView.as_view(), name='deactivate-employee-view'),
   path('employees/activate/<int:pk>/', ActivateEmployeeView.as_view(), name='activate-employee-view'),
   
-  #path for creating tasks
+  #path for creating tasks and asigning them to employees
+  #this will be used by the tenant to create tasks for employees
   path('tasks/create/', TaskCreateView.as_view(), name='create-task-view'),
 
 ] 

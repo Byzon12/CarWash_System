@@ -102,8 +102,8 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         # Check if the booking date is in the future
         
 
-        if booking_date <= timezone.now():
-            raise serializers.ValidationError(_("Booking date must be in the future."))
+     #   if booking_date <= timezone.now():
+          #  raise serializers.ValidationError(_("Booking date must be in the future."))
         # Check if the booking date conflicts with existing bookings
         existing_bookings = Booking.objects.filter(
             location=data['location'],

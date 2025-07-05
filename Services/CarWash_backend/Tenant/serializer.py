@@ -1,18 +1,20 @@
 
 from ctypes import FormatError
 from email import message
-from os import read
+from os import read, write
 import re
+from tabnanny import check
 from urllib import request
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
+
 from Tenant.models import TenantProfile, Tenant
 from django.contrib.auth.hashers import check_password
 from Staff.models import StaffProfile, StaffRole,Staff
-from .models import Task, Location
+from .models import CarCheckIn, Task, Location
 
 
 
@@ -408,7 +410,16 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
 from booking.serializer import BookingSerializer
 from Location.serializer import LocationSerializer, LocationServiceSerializer
 from Staff.serializer import StaffProfileSerializer
-from .models import Task, Location, Booking
+from .models import Task, Location, Booking, CarCheckIn
+
+   
+#serializer to hanle car check in
+class CarCheckInItemsSerializer(serializers.ModelSerializer):
+    from .models import CarCheckIn
+    class Meta:
+        model = CarCheckIn
+        fields = '__all__ '
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
 
 class TaskSerializer(serializers.ModelSerializer):
     #read_only_fields = ('tenant', 'location', 'created_at', 'updated_at')
@@ -417,6 +428,7 @@ class TaskSerializer(serializers.ModelSerializer):
     tenant = serializers.CharField(source='tenant.name', read_only=True)
     booking_made = serializers.CharField(source='booking_made.id', read_only=True)
     booking_location_service_services = serializers.SerializerMethodField(read_only=True)  # <-- Add this line
+    checkin_items = CarCheckInItemsSerializer(read_only=True, many=True)#read only field for car check in items nnested from child serializer 
 
 #write only fields
     assigned_to_id = serializers.PrimaryKeyRelatedField(
@@ -436,6 +448,17 @@ class TaskSerializer(serializers.ModelSerializer):
         queryset=Booking.objects.all(),
         write_only=True,
         required=True  # Make booking_id required for task creation
+    )
+    checkin_items_data = CarCheckInItemsSerializer(
+        source='car_checkins',
+        many=True,
+        write_only=True,
+        required=False,  # Make checkin_items_data optional for task creation
+        error_messages={
+            'blank': _('Check-in items cannot be blank.'),
+            'required': _('Check-in items are required.')
+        }
+        
     )
     #display booking names in more readable format
     booking_location_service = serializers.SerializerMethodField(read_only=True)
@@ -462,23 +485,46 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = [
-            'id', 'tenant', 'location', 'booking_made', 'description', 
-            'assigned_to', 'status', 'priority', 'due_date', 
-            'created_at', 'updated_at', 
-            'assigned_to_id', 'location_id', 'booking_id',
-             'booking_location_service' , 'booking_location_service_services'
+            'location', 'booking_made', 'description','tenant', 'checkin_items_data', 'checkin_items',
+            'assigned_to', 'status', 'priority', 'due_date', 'assigned_to_id',
+            'location_id', 'booking_id',
+            'booking_location_service', 'booking_location_service_services'
         ]
-        
+        write_only_fields = ('assigned_to_id', 'location_id', 'booking_id')
         read_only_fields = ('tenant', 'created_at', 'updated_at')
 
     def validate(self, data):
+        #task can only be assigned if the booking status is confirmed or completed
+        booking = data.get('booking_made')
+        if booking and booking.status != 'confirmed' and booking.status != 'completed':
+            raise serializers.ValidationError({'booking_made': _('Booking must be confirmed or completed to assign a task.')})
+        #check if the assigned_to_id is for the login tenant
+        assigned_to_id = data.get('assigned_to_id')
+        if assigned_to_id and assigned_to_id.tenant != self.context['request'].user.tenant:
+            raise serializers.ValidationError({'assigned_to_id': _('You can only assign tasks to your own staff.')})
+        #check if the task with the booking_made has been assigned
+        if Task.objects.filter(booking_made=data.get('booking_made'), assigned_to=assigned_to_id).exists():
+            assigned_to = StaffProfile.objects.get(id=assigned_to_id)
+            raise serializers.ValidationError({'booking_made': _('Task with this booking has already been assigned to another staff member {assigned_to}.').format(assigned_to=assigned_to.username)})
+
         #check if there is task with the same booking_made
         if Task.objects.filter(booking_made=data.get('booking_made')).exists():
             raise serializers.ValidationError({'booking_made': _('Task with this booking already exists.')})
-        #check if the 
+        
 
         return data
 
     def create(self, validated_data):
+        
        """Create a new task instance."""
-       return Task.objects.create(**validated_data)
+       booking = validated_data.pop('booking_made', None)
+       checkin_items_data = validated_data.pop('checkin_items_data', [])
+       
+       task = Task.objects.create(**validated_data)
+       task.booking_made.set(booking)
+
+       # Create CarCheckIn instances
+       for item_data in checkin_items_data:
+           CarCheckIn.objects.create(task=task, **item_data)
+
+       return task

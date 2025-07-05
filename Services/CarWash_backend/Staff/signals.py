@@ -12,6 +12,7 @@ def create_staff_profile(sender, instance, created, **kwargs):
     if created:
         # Create the auth user
         StaffProfile.objects.create(
+            tenant=instance.tenant,
             staff=instance,
             location=instance.location,
             username=instance.username,

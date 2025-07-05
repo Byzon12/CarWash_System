@@ -7,6 +7,7 @@ from Location.models import Location, Service, LocationService
 from Staff.models import StaffProfile, StaffRole,Staff
 
 from .models import CustomerProfile, AuditLog
+from Tenant.models import CarCheckIn
 
 @admin.register(CustomerProfile)
 class CustomerProfileAdmin(admin.ModelAdmin):
@@ -184,7 +185,7 @@ class BookingAdmin(admin.ModelAdmin):
         """
         Disable the change permission for Booking.
         """
-        return False
+        return True
     def has_delete_permission(self, request, obj=None):
         """
         Disable the delete permission for Booking.
@@ -213,7 +214,7 @@ class StaffProfileAdmin(admin.ModelAdmin):
     """
     Admin interface for StaffProfile model.
     """
-    list_display = ('username', 'work_email', 'phone_number', 'role', 'get_role_salary')
+    list_display = ('username', 'work_email', 'id', 'phone_number', 'role', 'get_role_salary')
     search_fields = ('work_email', 'phone_number')
 
 #custom method to get role salary for admin display
@@ -226,17 +227,17 @@ class StaffProfileAdmin(admin.ModelAdmin):
         """
         Disable the add permission for Employee.
         """
-        return True # Allow adding employees
+        return False
     def has_change_permission(self, request, obj=None):
         """
         Disable the change permission for Employee.
         """
-        return True
+        return False
     def has_delete_permission(self, request, obj=None):
         """
         Disable the delete permission for Employee.
         """
-        return True
+        return False
 
     def has_add_permission(self, request):
         """
@@ -312,3 +313,31 @@ class TaskAdmin(admin.ModelAdmin):
         """
         return True
     
+    
+
+# Registering CarCheckIn model in the admin interface
+@admin.register(CarCheckIn)
+class CarCheckInAdmin(admin.ModelAdmin):
+    """
+    Admin interface for CarCheckIn model.
+    """
+    list_display = ('car_plate_number', 'task', 'checkout_time')
+    search_fields = ('car_plate_number',)
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for CarCheckIn.
+        """
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for CarCheckIn.
+        """
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for CarCheckIn.
+        """
+        return True

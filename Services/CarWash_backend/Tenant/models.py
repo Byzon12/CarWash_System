@@ -49,6 +49,7 @@ class Tenant(models.Model):
 #creating tenant profile model
 class TenantProfile(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='profiles', null=True, blank=True)
+    id = models.AutoField(primary_key=True)
     username = models.CharField(max_length=150, unique=True)
     first_name = models.CharField(max_length=30, blank=True, null=True)
     last_name = models.CharField(max_length=30, blank=True, null=True)
@@ -82,7 +83,7 @@ class TenantProfile(models.Model):
     #model to hanldle Task creation and assignmening task
 from booking.models import Booking
 from Location.models import Location
-from Staff.models import StaffProfile
+from Staff.models import StaffProfile, Staff
 class Task(models.Model):
 
     # status choices
@@ -148,4 +149,15 @@ class Task(models.Model):
         verbose_name_plural = 'Tasks'
         ordering = ['-created_at']
         
-        
+#model to handle carcheckin and checkout items
+class CarCheckIn(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='car_checkins', null=True, blank=True)
+    car_plate_number = models.CharField(max_length=20, blank=True, null=True)
+    car_model = models.CharField(max_length=50, blank=True, null=True)
+    checkin_items = models.TextField(blank=True, null=True)  # Items checked in with the car
+    checkout_items = models.TextField(blank=True, null=True)  # Items checked out with
+    checkin_time = models.DateTimeField(auto_now_add=True)
+    checkout_time = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Check-in for {self.task} by {self.staff} at {self.checkin_time}"

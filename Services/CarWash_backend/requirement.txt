@@ -18,3 +18,4 @@ twilio
 pyyaml
 ua-parser
 user-agents
+drf-yasg
