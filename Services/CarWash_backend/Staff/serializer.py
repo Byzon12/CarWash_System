@@ -2,6 +2,7 @@
 from os import read
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 from django.contrib.auth.hashers import make_password
 from .models import StaffProfile
 from Tenant.models import Tenant, Task
@@ -213,20 +214,65 @@ Methods:
         Customize the representation of the serialized data.
         """
         from Tenant.serializer import TaskSerializer
+        from datetime import datetime
+        from django.utils import timezone
         
+        tasks = instance.get('tasks', [])
+        # Ensure tasks is a list, if not, initialize it as an empty list
+        if not isinstance(tasks, list):
+            #initialize counters
+            total_tasks = len(tasks)
+            completed_tasks = sum(1 for task in tasks if task.status == 'completed')
+            pending_tasks = sum(1 for task in tasks if task.status == 'pending')
+            overdue_tasks = sum(1 for task in tasks if task.status == 'overdue')
+            tasks = []
+        else:
+            # Count the number of tasks assigned to the staff member
+            total_tasks = len(tasks)
+            # Count the number of completed tasks
+            completed_tasks = sum(1 for task in tasks if task.status == 'completed')
+            # Count the number of pending tasks
+            pending_tasks = sum(1 for task in tasks if task.status == 'pending')
+            # Count the number of overdue tasks
+            overdue_tasks = sum(1 for task in tasks if task.status == 'overdue' and task.due_date < timezone.now())
+
         data = {
-           'total_tasks': instance.get('total_tasks', 0),
-            'completed_tasks': instance.get('completed_tasks', 0),
-            'pending_tasks': instance.get('pending_tasks', 0),
-            'overdue_tasks': instance.get('overdue_tasks', 0), 
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'pending_tasks': pending_tasks,
+            'overdue_tasks': overdue_tasks,
         }
         #dynamically serialize the tasks
-        tasks = instance.get('tasks', [])
+       
         if tasks:
             data['tasks'] = TaskSerializer(tasks, many=True).data
         else:
             data['tasks'] = []
         return data
+    
+    #get task statistics for the staff member
+    def get_task_statistics(self, staff):
+        """
+        Get the task statistics for a specific staff member.
+        This method retrieves the tasks assigned to the staff member and aggregates the statistics.
+        """
+        from Tenant.models import Task
+        # Retrieve tasks assigned to the staff member
+        tasks = Task.objects.filter(assigned_to=staff)
+        
+        # Aggregate task statistics
+        total_tasks = tasks.count()
+        completed_tasks = tasks.filter(status='completed').count()
+        pending_tasks = tasks.filter(status='pending').count()
+        overdue_tasks = tasks.filter(status='overdue', due_date__lt=timezone.now()).count()
+        
+        return {
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'pending_tasks': pending_tasks,
+            'overdue_tasks': overdue_tasks,
+            'tasks': tasks
+        }
     
 #serializer to handle upadte of task status
 class StaffUpdateTaskStatusSerializer(serializers.ModelSerializer):

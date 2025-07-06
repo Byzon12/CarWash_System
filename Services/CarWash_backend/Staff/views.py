@@ -1,4 +1,5 @@
 from profile import Profile
+from tarfile import data_filter
 from django.shortcuts import render
 from rest_framework import generics, permissions
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -174,9 +175,15 @@ class StaffTaskStatisticsView(generics.RetrieveAPIView):
             return None
 
     def get(self, request, *args, **kwargs):
+        staff_profile = self.get_object()
+        serializer = self.get_serializer(staff_profile)
+        data = serializer.get_task_statistics(staff_profile)
+        serializer_instance = StaffTaskSerializer(data)
+        return Response(serializer_instance.data, status=status.HTTP_200_OK)
+
         """
         Handle GET request to retrieve the staff task statistics.
-        """
+        
         staff_profile = self.get_object()
         if not staff_profile:
             return Response({'detail': _('Staff profile not found.')}, status=status.HTTP_404_NOT_FOUND)
@@ -191,6 +198,6 @@ class StaffTaskStatisticsView(generics.RetrieveAPIView):
 
         serializer = self.get_serializer(stats)
 
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.data, status=status.HTTP_200_OK)"""
     
     
