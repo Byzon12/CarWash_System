@@ -32,13 +32,13 @@ SECRET_KEY = 'django-insecure-kf+w=&$zt$hd9$)v13t+@9@gai=#%pzvs_h1-710m&%h*!*921
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]  # Allow all hosts for development; change in production
+
 
 # CORS settings
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-       # "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
        "Staff.Authentication.StaffAuthentication",  # Custom staff authentication
        
@@ -86,9 +86,28 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
-
 CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development; change in production
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:58147",  # Example for React development server
+]
+
+
 CORS_ALLOW_CREDENTIALS = True  # Allow credentials for CORS requests
+CORS_ALLOW_HEADERS = [
+    'authorization',
+    'content-type', 
+    'x-csrftoken',
+    'x-requested-with', 
+    'accept',
+    'accept-encoding',
+    'origin',
+    'user-agent',   
+    'x-csrftoken',
+    'x-requested-with',
+]
 
 
 # Application definition
@@ -115,6 +134,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',  # CORS middleware
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
