@@ -4,7 +4,7 @@ from rest_framework import generics, permissions
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import StaffProfile
 from Tenant.models import Task
-from .serializer import StaffLoginSerializer, StaffProfileSerializer, StaffUpdateProfileSerializer, StaffPasswordResetSerializer
+from .serializer import StaffLoginSerializer, StaffProfileSerializer, StaffUpdateProfileSerializer, StaffPasswordResetSerializer, StaffTaskSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
@@ -141,3 +141,56 @@ class StaffTaskListView(generics.ListAPIView):
             return Task.objects.none()
 
         return Task.objects.filter(assigned_to=staff_profile).order_by('-created_at')
+    
+#api view to handle staff task statistics
+class StaffTaskStatisticsView(generics.RetrieveAPIView):
+    """
+    API view to retrieve task statistics for the authenticated staff user.
+    This view allows a staff member to fetch all tasks assigned to them. It uses custom authentication and permission classes to ensure only authenticated staff can access their own statistics.
+    Methods:
+        get_object():
+            Retrieves the StaffProfile instance associated with the authenticated user.
+            Returns None if the profile does not exist.
+        get(request, *args, **kwargs):
+            Handles GET requests to return serialized data of all tasks assigned to the staff user.
+            Returns a 404 response if the staff profile is not found.
+    Attributes:
+        serializer_class (StaffTaskSerializer): Serializer for task data.
+        permission_classes ([IsAuthenticated]): Ensures the user is authenticated.
+        authentication_classes ([StaffAuthentication]): Custom authentication for staff users.
+    """
+    serializer_class = StaffTaskSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [StaffAuthentication]
+
+    def get_object(self):
+        """
+        Return the staff profile of the authenticated user.
+        """
+        staff_user = self.request.user
+        try:
+            return StaffProfile.objects.get(staff=staff_user)
+        except StaffProfile.DoesNotExist:
+            return None
+
+    def get(self, request, *args, **kwargs):
+        """
+        Handle GET request to retrieve the staff task statistics.
+        """
+        staff_profile = self.get_object()
+        if not staff_profile:
+            return Response({'detail': _('Staff profile not found.')}, status=status.HTTP_404_NOT_FOUND)
+        tasks = Task.objects.filter(assigned_to=staff_profile)
+        stats ={
+            'total_tasks': tasks.count(),
+            'completed_tasks': tasks.filter(status='completed').count(),
+            'pending_tasks': tasks.filter(status='pending').count(),
+            'overdue_tasks': tasks.filter(status='overdue').count(),
+            'tasks': tasks
+        }
+
+        serializer = self.get_serializer(stats)
+
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    

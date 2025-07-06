@@ -175,3 +175,74 @@ It includes fields for email, phone number, work email, first name, and last nam
         instance.last_name = validated_data.get('last_name', instance.last_name)
         instance.save()
         return instance
+    
+
+#task serializer for staff dashboard
+class StaffTaskSerializer(serializers.Serializer):
+    """
+    StaffTaskSerializer is a custom serializer for aggregating and presenting staff task data on the staff dashboard.
+    This serializer provides:
+    - The total number of tasks assigned to an individual staff member.
+    - The count of tasks based on their status: completed, pending, and overdue.
+    - A detailed list of tasks, serialized using the TaskSerializer.
+    Fields:
+    
+    total_tasks (int): Total number of tasks assigned to the staff member.
+    completed_tasks (int): Number of tasks marked as completed.
+    pending_tasks (int): Number of tasks that are still pending.
+    overdue_tasks (int): Number of tasks that are overdue.
+Methods:
+    to_representation(instance): Customizes the serialized output, including task counts and a detailed list of tasks.
+   
+
+    this serializer is used to serialize the task data for the staff dashboard.
+    count number of task assigned to individual staff,
+    count the task base on status of the task,
+    and return the task details.
+    
+    """
+    
+    total_tasks = serializers.IntegerField(read_only=True)
+    completed_tasks = serializers.IntegerField(read_only=True)
+    pending_tasks = serializers.IntegerField(read_only=True)
+    overdue_tasks = serializers.IntegerField(read_only=True)
+   
+
+    def to_representation(self, instance):
+        """
+        Customize the representation of the serialized data.
+        """
+        from Tenant.serializer import TaskSerializer
+        
+        data = {
+           'total_tasks': instance.get('total_tasks', 0),
+            'completed_tasks': instance.get('completed_tasks', 0),
+            'pending_tasks': instance.get('pending_tasks', 0),
+            'overdue_tasks': instance.get('overdue_tasks', 0), 
+        }
+        #dynamically serialize the tasks
+        tasks = instance.get('tasks', [])
+        if tasks:
+            data['tasks'] = TaskSerializer(tasks, many=True).data
+        else:
+            data['tasks'] = []
+        return data
+    
+#serializer to handle upadte of task status
+class StaffUpdateTaskStatusSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating the status of a task assigned to a staff member.
+    This serializer is used to validate and update the status of a task.
+    """
+    class Meta:
+        model = Task
+        fields = ['status']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'assigned_to', 'tenant', 'location', 'booking_made']
+    
+    def validate_status(self, value):
+        """
+        Validate the status field to ensure it is one of the allowed choices.
+        """
+        if value not in dict(Task.STATUS_CHOICES).keys():
+            raise serializers.ValidationError(_('Invalid status choice.'))
+        return value

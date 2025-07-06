@@ -418,7 +418,7 @@ class CarCheckInItemsSerializer(serializers.ModelSerializer):
     from .models import CarCheckIn
     class Meta:
         model = CarCheckIn
-        fields = '__all__ '
+        fields = '__all__'
         read_only_fields = ('tenant', 'created_at', 'updated_at')
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -453,7 +453,7 @@ class TaskSerializer(serializers.ModelSerializer):
         source='car_checkins',
         many=True,
         write_only=True,
-        required=False,  # Make checkin_items_data optional for task creation
+        required=True,  # Make checkin_items_data optional for task creation
         error_messages={
             'blank': _('Check-in items cannot be blank.'),
             'required': _('Check-in items are required.')
@@ -518,11 +518,12 @@ class TaskSerializer(serializers.ModelSerializer):
         
        """Create a new task instance."""
        booking = validated_data.pop('booking_made', None)
-       checkin_items_data = validated_data.pop('checkin_items_data', [])
+       checkin_items_data = validated_data.pop('car_checkins', [])
        
        task = Task.objects.create(**validated_data)
-       task.booking_made.set(booking)
-
+       if booking:
+           task.booking_made = booking
+           task.save()
        # Create CarCheckIn instances
        for item_data in checkin_items_data:
            CarCheckIn.objects.create(task=task, **item_data)
