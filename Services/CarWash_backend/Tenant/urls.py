@@ -1,32 +1,39 @@
-
 from django.conf import settings
 from django.urls import path
 from django.conf.urls.static import static
-#from .views import TenantProfileListCreateView
-from .views import TenantProfileView, TenantLoginView, TenantLogoutView,TenantProfileDetailsView ,CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView, DeactivateEmployeeView,ActivateEmployeeView, TaskCreateView
+from .views import (
+    TenantProfileView, TenantLoginView, TenantLogoutView, TenantProfileDetailsView,
+    CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView,
+    DeactivateEmployeeView, ActivateEmployeeView, TaskCreateView, TaskListView,
+    TaskDetailView, TaskUpdateStatusView, tenant_dashboard_stats, staff_task_statistics
+)
 
 urlpatterns = [
-  path('login/', TenantLoginView.as_view(), name='tenant-login-view'),
-  path('logout/', TenantLogoutView.as_view(), name='tenant-logout-view'),
+    # Authentication
+    path('login/', TenantLoginView.as_view(), name='tenant-login-view'),
+    path('logout/', TenantLogoutView.as_view(), name='tenant-logout-view'),
 
-  path('profile/', TenantProfileView.as_view(), name='tenant-profile-view'),
-  path('profile/details/', TenantProfileDetailsView.as_view(), name='tenant-profile-details-view'),
+    # Profile management
+    path('profile/', TenantProfileView.as_view(), name='tenant-profile-view'),
+    path('profile/details/', TenantProfileDetailsView.as_view(), name='tenant-profile-details-view'),
 
-#path for creating employee
-#listing employees is not allowed in this case
-  path('employees/list/', ListEmployeeView.as_view(), name='list-employee-view'),
-  path('employees/update/<int:pk>/', CreateEmployeeSalaryView.as_view(), name='update-employee-salary-view'), #provide location pk in the request data to update employee salary
-  path('employees/', CreateEmployeeView.as_view(), name='create-employee-view'),
-  
-  #deleting an employee 
- path('employees/delete/<int:pk>/', DeleteEmployeeView.as_view(), name='delete-employee-view'),
-  path('employees/deactivate/<int:pk>/', DeactivateEmployeeView.as_view(), name='deactivate-employee-view'),
-  path('employees/activate/<int:pk>/', ActivateEmployeeView.as_view(), name='activate-employee-view'),
-  
-  #path for creating tasks and asigning them to employees
-  #this will be used by the tenant to create tasks for employees
-  path('tasks/create/', TaskCreateView.as_view(), name='create-task-view'),
-
+    # Employee management
+    path('employees/list/', ListEmployeeView.as_view(), name='list-employee-view'),
+    path('employees/', CreateEmployeeView.as_view(), name='create-employee-view'),
+    path('employees/update/<int:pk>/', CreateEmployeeSalaryView.as_view(), name='update-employee-salary-view'),
+    path('employees/delete/<int:pk>/', DeleteEmployeeView.as_view(), name='delete-employee-view'),
+    path('employees/deactivate/<int:pk>/', DeactivateEmployeeView.as_view(), name='deactivate-employee-view'),
+    path('employees/activate/<int:pk>/', ActivateEmployeeView.as_view(), name='activate-employee-view'),
+    
+    # Task management
+    path('tasks/create/', TaskCreateView.as_view(), name='create-task-view'),
+    path('tasks/', TaskListView.as_view(), name='list-tasks-view'),
+    path('tasks/<int:pk>/', TaskDetailView.as_view(), name='task-detail-view'),
+    path('tasks/<int:pk>/status/', TaskUpdateStatusView.as_view(), name='update-task-status-view'),
+    
+    # Dashboard and statistics
+    path('dashboard/stats/', tenant_dashboard_stats, name='tenant-dashboard-stats'),
+    path('staff/statistics/', staff_task_statistics, name='staff-task-statistics'),
 ] 
 
 if settings.DEBUG:
