@@ -5,7 +5,7 @@ from rest_framework import generics, permissions
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from .models import StaffProfile
 from Tenant.models import Task
-from .serializer import StaffLoginSerializer, StaffProfileSerializer, StaffUpdateProfileSerializer, StaffPasswordResetSerializer, StaffTaskSerializer
+from .serializer import StaffLoginSerializer, StaffProfileSerializer,   StaffUpdateProfileSerializer, StaffPasswordResetSerializer, StaffTaskSerializer,StaffUpdateTaskStatusSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.utils.translation import gettext_lazy as _
 from rest_framework.response import Response
@@ -181,23 +181,26 @@ class StaffTaskStatisticsView(generics.RetrieveAPIView):
         serializer_instance = StaffTaskSerializer(data)
         return Response(serializer_instance.data, status=status.HTTP_200_OK)
 
-        """
-        Handle GET request to retrieve the staff task statistics.
-        
-        staff_profile = self.get_object()
-        if not staff_profile:
-            return Response({'detail': _('Staff profile not found.')}, status=status.HTTP_404_NOT_FOUND)
-        tasks = Task.objects.filter(assigned_to=staff_profile)
-        stats ={
-            'total_tasks': tasks.count(),
-            'completed_tasks': tasks.filter(status='completed').count(),
-            'pending_tasks': tasks.filter(status='pending').count(),
-            'overdue_tasks': tasks.filter(status='overdue').count(),
-            'tasks': tasks
-        }
+     
+# API view to handle updating the status of a task assigned to a staff member
+class StaffUpdateTaskStatusView(generics.UpdateAPIView):
+    """
+    API view to update the status of a task assigned to a staff member.
+    This view allows a staff member to update the status of a task they are assigned to.
+    """
+    serializer_class = StaffUpdateTaskStatusSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [StaffAuthentication]
+    
+    def get_queryset(self):
+        """Return tasks assigned to the authenticated staff member."""
+        staff_user = self.request.user
+        try:
+            staff_profile = StaffProfile.objects.get(staff=staff_user)
+            return Task.objects.filter(assigned_to=staff_profile)
+        except StaffProfile.DoesNotExist:
+            return Task.objects.none()
 
-        serializer = self.get_serializer(stats)
 
-        return Response(serializer.data, status=status.HTTP_200_OK)"""
     
     

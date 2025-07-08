@@ -1,5 +1,6 @@
 
 from os import read
+from django_mongodb_backend.expressions import value
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
@@ -206,6 +207,7 @@ Methods:
     total_tasks = serializers.IntegerField(read_only=True)
     completed_tasks = serializers.IntegerField(read_only=True)
     pending_tasks = serializers.IntegerField(read_only=True)
+    in_progress_tasks = serializers.IntegerField(read_only=True)
     overdue_tasks = serializers.IntegerField(read_only=True)
    
 
@@ -224,6 +226,7 @@ Methods:
             total_tasks = len(tasks)
             completed_tasks = sum(1 for task in tasks if task.status == 'completed')
             pending_tasks = sum(1 for task in tasks if task.status == 'pending')
+            in_progress_tasks = sum(1 for task in tasks if task.status == 'in_progress')
             overdue_tasks = sum(1 for task in tasks if task.status == 'overdue')
             tasks = []
         else:
@@ -231,15 +234,18 @@ Methods:
             total_tasks = len(tasks)
             # Count the number of completed tasks
             completed_tasks = sum(1 for task in tasks if task.status == 'completed')
+            # Count the number of in-progress tasks
+            in_progress_tasks = sum(1 for task in tasks if task.status == 'in_progress')
             # Count the number of pending tasks
             pending_tasks = sum(1 for task in tasks if task.status == 'pending')
             # Count the number of overdue tasks
             overdue_tasks = sum(1 for task in tasks if task.status == 'overdue' and task.due_date < timezone.now())
-
+#response data to be returned
         data = {
             'total_tasks': total_tasks,
             'completed_tasks': completed_tasks,
             'pending_tasks': pending_tasks,
+            'in_progress_tasks': in_progress_tasks,
             'overdue_tasks': overdue_tasks,
         }
         #dynamically serialize the tasks
@@ -264,12 +270,14 @@ Methods:
         total_tasks = tasks.count()
         completed_tasks = tasks.filter(status='completed').count()
         pending_tasks = tasks.filter(status='pending').count()
+        in_progress_tasks = tasks.filter(status='in_progress').count()
         overdue_tasks = tasks.filter(status='overdue', due_date__lt=timezone.now()).count()
         
         return {
             'total_tasks': total_tasks,
             'completed_tasks': completed_tasks,
             'pending_tasks': pending_tasks,
+            'in_progress_tasks': in_progress_tasks,
             'overdue_tasks': overdue_tasks,
             'tasks': tasks
         }
@@ -279,16 +287,65 @@ class StaffUpdateTaskStatusSerializer(serializers.ModelSerializer):
     """
     Serializer for updating the status of a task assigned to a staff member.
     This serializer is used to validate and update the status of a task.
+    the task status can be updated to one of the following choices:
+    - pending
+    - in_progress
+    - completed
+    - overdue
     """
     class Meta:
         model = Task
         fields = ['status']
         read_only_fields = ['id', 'created_at', 'updated_at', 'assigned_to', 'tenant', 'location', 'booking_made']
-    
+        
     def validate_status(self, value):
+        """validate the status of the task according to transition flow
+        pending -> in_progress
+        in_progress -> completed
         """
-        Validate the status field to ensure it is one of the allowed choices.
-        """
-        if value not in dict(Task.STATUS_CHOICES).keys():
-            raise serializers.ValidationError(_('Invalid status choice.'))
+        instance = self.instance
+        if not instance:
+            return value
+
+        current_status = instance.status
+        new_status = value
+
+        valid_transitions = {
+            'pending': ['in_progress', 'completed', 'overdue'],
+            'in_progress': ['completed', 'overdue'],
+            'completed': [],  # no further transitions allowed
+            'overdue': ['in_progress']  # can be moved back to in_progress
+        }
+        
+        #if status is the same, allow it (no change)
+        if current_status == new_status:
+            return value
+
+        # check if the transition is allowed
+        if current_status in valid_transitions:
+            if new_status in valid_transitions[current_status]:
+                return value
+            # disallow invalid transitions
+            if current_status == 'pending' and new_status == 'completed':
+                raise serializers.ValidationError(_('Cannot directly complete a pending task.'))
+            elif current_status == 'completed':
+                raise serializers.ValidationError(_('No further transitions allowed for completed tasks.'))
+            # if not a valid transition, raise error
+            raise serializers.ValidationError(_(f'Cannot transition from {current_status} to {new_status}.'))
+
         return value
+
+    def update(self, instance, validated_data):
+            """
+            Update the task status and return the updated instance.
+            """
+            old_status = instance.status
+            new_status = validated_data.get('status', instance.status)
+
+            #complitation time status
+            if old_status == 'in_progress' and new_status == 'completed':
+                instance.completion_time = timezone.now()
+
+        
+            instance.save()
+            return instance

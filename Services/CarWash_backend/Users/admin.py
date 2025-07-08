@@ -291,7 +291,7 @@ class TaskAdmin(admin.ModelAdmin):
     """
     Admin interface for Task model.
     """
-    list_display = ('booking_made', 'location', 'due_date', 'assigned_to', 'status', 'tenant')
+    list_display = ('booking_made', 'location', 'due_date', 'assigned_to', 'status', 'tenant','task_id')
     search_fields = ('due_date', 'description', 'assigned_to__full_name')
     list_filter = ('status', 'due_date')
 

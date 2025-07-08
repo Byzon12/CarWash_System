@@ -91,6 +91,7 @@ class Task(models.Model):
         ('pending', 'Pending'),
         ('in_progress', 'In Progress'),
         ('completed', 'Completed'),
+        ('overdue', 'Overdue'),
         ('cancelled', 'Cancelled'),
     ]
     
@@ -99,6 +100,7 @@ class Task(models.Model):
         ('medium', 'Medium'),
         ('high', 'High'),
     ]
+    task_id = models.AutoField(primary_key=True)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
     booking_made = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)

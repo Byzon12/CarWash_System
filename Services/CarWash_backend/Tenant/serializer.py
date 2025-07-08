@@ -429,6 +429,8 @@ class TaskSerializer(serializers.ModelSerializer):
     booking_made = serializers.CharField(source='booking_made.id', read_only=True)
     booking_location_service_services = serializers.SerializerMethodField(read_only=True)  # <-- Add this line
     checkin_items = CarCheckInItemsSerializer(read_only=True, many=True)#read only field for car check in items nnested from child serializer 
+    #status translation
+    next_possible_status = serializers.SerializerMethodField(read_only=True)
 
 #write only fields
     assigned_to_id = serializers.PrimaryKeyRelatedField(
@@ -460,6 +462,19 @@ class TaskSerializer(serializers.ModelSerializer):
         }
         
     )
+    
+    #function to get the next possible status of a task
+    def get_next_possible_status(self, obj):
+        """Return the next possible status for a task."""
+        status_transitions = {
+            'pending': ['in_progress', 'completed', 'overdue'],
+            'in_progress': ['completed', 'overdue'],
+            'completed': [],
+            'overdue': []
+        }
+
+        return status_transitions.get(obj.status, [])
+
     #display booking names in more readable format
     booking_location_service = serializers.SerializerMethodField(read_only=True)
     def get_booking_location_service(self, obj):
@@ -488,7 +503,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'location', 'booking_made', 'description','tenant', 'checkin_items_data', 'checkin_items',
             'assigned_to', 'status', 'priority', 'due_date', 'assigned_to_id',
             'location_id', 'booking_id',
-            'booking_location_service', 'booking_location_service_services'
+            'booking_location_service', 'booking_location_service_services','next_possible_status'
         ]
         write_only_fields = ('assigned_to_id', 'location_id', 'booking_id')
         read_only_fields = ('tenant', 'created_at', 'updated_at')
@@ -515,11 +530,13 @@ class TaskSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        
-       """Create a new task instance."""
+
+       """Create a new task instance. with default status as pending."""
        booking = validated_data.pop('booking_made', None)
        checkin_items_data = validated_data.pop('car_checkins', [])
-       
+       # set default stautus to 'pending' when creating a new task
+       if 'status' not in validated_data:
+           validated_data['status'] = 'pending'
        task = Task.objects.create(**validated_data)
        if booking:
            task.booking_made = booking

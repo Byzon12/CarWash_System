@@ -1,6 +1,6 @@
 from django.conf import settings
 from django.urls import path
-from  .views import StaffLoginView, StaffTaskListView, StaffLogoutView, StaffProfileView, StaffPasswordResetView,  StaffTaskStatisticsView
+from  .views import StaffLoginView, StaffTaskListView, StaffLogoutView, StaffProfileView, StaffPasswordResetView,  StaffTaskStatisticsView,StaffUpdateTaskStatusView
 
 urlpatterns = [
     #staff urls
@@ -15,6 +15,7 @@ urlpatterns = [
     
     #task statistics urls
     path('task-statistics/', StaffTaskStatisticsView.as_view(), name='staff_task_statistics'), #this will be used to retrieve the task statistics for the staff dashboard
+    path('tasks/update-status/<int:pk>/', StaffUpdateTaskStatusView.as_view(), name='staff_update_task_status'),
 
     #task urls
     path('tasks-list/', StaffTaskListView.as_view(), name='staff_task_list'),
