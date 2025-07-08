@@ -245,7 +245,7 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-# serializer to handle employee creation
+# Serializer to handle employee creation
 class CreateEmployeeSerializer(serializers.ModelSerializer):
     username = serializers.CharField(
         max_length=150,
@@ -276,7 +276,7 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
 
     role_id = serializers.PrimaryKeyRelatedField(
         source='role',
-        queryset=StaffRole.objects.all(),
+        queryset=StaffRole.objects.all(),  # Show all roles since StaffRole doesn't have tenant field
         write_only=True,
         error_messages={
             'does_not_exist': _('Role does not exist.'),
@@ -286,6 +286,7 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     
     location_id = serializers.PrimaryKeyRelatedField(
         source='location',
+        queryset=get_location_model().objects.none(),  # Will be set in __init__
         write_only=True,
         error_messages={
             'does_not_exist': _('Location does not exist.'),
@@ -298,12 +299,21 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Set querysets dynamically based on request context
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             tenant = request.user
             Location = get_location_model()
+            
+            # Set the queryset for location_id field - filter by tenant
             self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
-            self.fields['role_id'].queryset = StaffRole.objects.filter(tenant=tenant)
+            # StaffRole doesn't have tenant field, so we show all roles
+            self.fields['role_id'].queryset = StaffRole.objects.all()
+        else:
+            # Fallback to empty querysets if no request context
+            Location = get_location_model()
+            self.fields['location_id'].queryset = Location.objects.none()
+            self.fields['role_id'].queryset = StaffRole.objects.none()
 
     def get_role(self, obj):
         if obj.role:
@@ -325,16 +335,14 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Staff
         fields = [
-            'id', 'username', 'email', 'password', 'first_name', 'last_name',
-            'phone_number', 'role_id', 'location_id', 'role', 'location',
-            'is_active', 'created_at', 'updated_at'
+            'id', 'username', 'email', 'password',
+            'role_id', 'location_id', 'role', 'location'
         ]
         extra_kwargs = {
             'password': {'write_only': True},
         }
-        read_only_fields = ('tenant', 'created_at', 'updated_at', 'is_active')
+        read_only_fields = ('tenant', 'created_at', 'updated_at')
         
-    #method to validate the username
     def validate_username(self, value):
         if Staff.objects.filter(username=value).exists():
             raise serializers.ValidationError(_('Username already exists.'))
@@ -391,19 +399,21 @@ class TaskSerializer(serializers.ModelSerializer):
     # Write only fields
     assigned_to_id = serializers.PrimaryKeyRelatedField(
         source='assigned_to',
-        queryset=StaffProfile.objects.all(),
+        queryset=StaffProfile.objects.none(),  # Will be set in __init__
         write_only=True,
         required=True
     )
     
     location_id = serializers.PrimaryKeyRelatedField(
         source='location',
+        queryset=get_location_model().objects.none(),  # Will be set in __init__
         write_only=True,
         required=True
     )
     
     booking_id = serializers.PrimaryKeyRelatedField(
         source='booking_made',
+        queryset=get_booking_model().objects.none(),  # Will be set in __init__
         write_only=True,
         required=True
     )
@@ -428,7 +438,15 @@ class TaskSerializer(serializers.ModelSerializer):
             
             self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
             self.fields['booking_id'].queryset = Booking.objects.filter(tenant=tenant)
+            # Filter StaffProfile by tenant field
             self.fields['assigned_to_id'].queryset = StaffProfile.objects.filter(tenant=tenant)
+        else:
+            # Fallback to empty querysets
+            Location = get_location_model()
+            Booking = get_booking_model()
+            self.fields['location_id'].queryset = Location.objects.none()
+            self.fields['booking_id'].queryset = Booking.objects.none()
+            self.fields['assigned_to_id'].queryset = StaffProfile.objects.none()
     
     def get_next_possible_status(self, obj):
         """Return the next possible status for a task."""

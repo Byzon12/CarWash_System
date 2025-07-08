@@ -5,12 +5,12 @@ from .views import (
     TenantProfileView, TenantLoginView, TenantLogoutView, TenantProfileDetailsView,
     CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView,
     DeactivateEmployeeView, ActivateEmployeeView, TaskCreateView, TaskListView,
-    TaskDetailView, TaskUpdateStatusView, tenant_dashboard_stats, staff_task_statistics
+    TaskDetailView, TaskUpdateStatusView, TenantDashboardStatsView, StaffTaskStatisticsView
 )
 
 urlpatterns = [
     # Authentication
-    path('login/', TenantLoginView.as_view(), name='tenant-login-view'),
+    path('login/', TenantLoginView.as_view(), name='tenant-login-view'), # Tenant login view 
     path('logout/', TenantLogoutView.as_view(), name='tenant-logout-view'),
 
     # Profile management
@@ -20,7 +20,7 @@ urlpatterns = [
     # Employee management
     path('employees/list/', ListEmployeeView.as_view(), name='list-employee-view'),
     path('employees/', CreateEmployeeView.as_view(), name='create-employee-view'),
-    path('employees/update/<int:pk>/', CreateEmployeeSalaryView.as_view(), name='update-employee-salary-view'),
+    path('employees/update/<int:pk>/', CreateEmployeeSalaryView.as_view(), name='update-employee-salary-view'),# Update employee salary
     path('employees/delete/<int:pk>/', DeleteEmployeeView.as_view(), name='delete-employee-view'),
     path('employees/deactivate/<int:pk>/', DeactivateEmployeeView.as_view(), name='deactivate-employee-view'),
     path('employees/activate/<int:pk>/', ActivateEmployeeView.as_view(), name='activate-employee-view'),
@@ -32,8 +32,8 @@ urlpatterns = [
     path('tasks/<int:pk>/status/', TaskUpdateStatusView.as_view(), name='update-task-status-view'),
     
     # Dashboard and statistics
-    path('dashboard/stats/', tenant_dashboard_stats, name='tenant-dashboard-stats'),
-    path('staff/statistics/', staff_task_statistics, name='staff-task-statistics'),
+    path('dashboard/stats/', TenantDashboardStatsView.as_view(), name='tenant-dashboard-stats'),
+    path('staff/statistics/', StaffTaskStatisticsView.as_view(), name='staff-task-statistics'),
 ] 
 
 if settings.DEBUG:

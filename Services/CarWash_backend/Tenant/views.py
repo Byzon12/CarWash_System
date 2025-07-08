@@ -11,6 +11,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from django.utils.translation import gettext_lazy as _
 from django.db.models import Count, Q
+from django.db import models
 from decimal import Decimal
 from datetime import datetime, timedelta
 
@@ -290,75 +291,78 @@ class TaskUpdateStatusView(generics.UpdateAPIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 # Dashboard and statistics views
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def tenant_dashboard_stats(request):
+class TenantDashboardStatsView(generics.GenericAPIView):
     """Get dashboard statistics for tenant."""
-    tenant = request.user
-    Location = get_location_model()
-    Booking = get_booking_model()
-    
-    # Calculate statistics
-    total_staff = StaffProfile.objects.filter(tenant=tenant).count()
-    total_locations = Location.objects.filter(tenant=tenant).count()
-    total_tasks = Task.objects.filter(tenant=tenant).count()
-    
-    # Task statistics
-    pending_tasks = Task.objects.filter(tenant=tenant, status='pending').count()
-    in_progress_tasks = Task.objects.filter(tenant=tenant, status='in_progress').count()
-    completed_tasks = Task.objects.filter(tenant=tenant, status='completed').count()
-    overdue_tasks = Task.objects.filter(tenant=tenant, status='overdue').count()
-    
-    # Booking statistics
-    total_bookings = Booking.objects.filter(tenant=tenant).count()
-    confirmed_bookings = Booking.objects.filter(tenant=tenant, status='confirmed').count()
-    completed_bookings = Booking.objects.filter(tenant=tenant, status='completed').count()
-    
-    # Revenue calculation (this month)
-    current_month = datetime.now().month
-    current_year = datetime.now().year
-    revenue_this_month = Booking.objects.filter(
-        tenant=tenant,
-        status='completed',
-        created_at__month=current_month,
-        created_at__year=current_year
-    ).aggregate(
-        total=models.Sum('total_price')
-    )['total'] or Decimal('0.00')
-    
-    data = {
-        'total_staff': total_staff,
-        'total_locations': total_locations,
-        'total_tasks': total_tasks,
-        'pending_tasks': pending_tasks,
-        'in_progress_tasks': in_progress_tasks,
-        'completed_tasks': completed_tasks,
-        'overdue_tasks': overdue_tasks,
-        'total_bookings': total_bookings,
-        'confirmed_bookings': confirmed_bookings,
-        'completed_bookings': completed_bookings,
-        'revenue_this_month': revenue_this_month
-    }
-    
-    serializer = TenantDashboardSerializer(data)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    serializer_class = TenantDashboardSerializer
+    permission_classes = [IsAuthenticated]
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def staff_task_statistics(request):
+    def get(self, request, *args, **kwargs):
+        tenant = request.user
+        Location = get_location_model()
+        Booking = get_booking_model()
+        
+        # Calculate statistics
+        total_staff = StaffProfile.objects.filter(tenant=tenant).count()
+        total_locations = Location.objects.filter(tenant=tenant).count()
+        total_tasks = Task.objects.filter(tenant=tenant).count()
+        
+        # Task statistics
+        pending_tasks = Task.objects.filter(tenant=tenant, status='pending').count()
+        in_progress_tasks = Task.objects.filter(tenant=tenant, status='in_progress').count()
+        completed_tasks = Task.objects.filter(tenant=tenant, status='completed').count()
+        overdue_tasks = Task.objects.filter(tenant=tenant, status='overdue').count()
+        
+        # Booking statistics
+        total_bookings = Booking.objects.filter(location__tenant=tenant).count()
+        confirmed_bookings = Booking.objects.filter(location__tenant=tenant, status='confirmed').count()
+        completed_bookings = Booking.objects.filter(location__tenant=tenant, status='completed').count()
+
+        # Revenue calculation (this month)
+        current_month = datetime.now().month
+        current_year = datetime.now().year
+        revenue_this_month = Booking.objects.filter(
+            location__tenant=tenant,
+            status='completed',
+            created_at__month=current_month,
+            created_at__year=current_year
+        ).aggregate(
+            total=models.Sum('amount')
+        )['total'] or Decimal('0.00')
+        
+        data = {
+            'total_staff': total_staff,
+            'total_locations': total_locations,
+            'total_tasks': total_tasks,
+            'pending_tasks': pending_tasks,
+            'in_progress_tasks': in_progress_tasks,
+            'completed_tasks': completed_tasks,
+            'overdue_tasks': overdue_tasks,
+            'total_bookings': total_bookings,
+            'confirmed_bookings': confirmed_bookings,
+            'completed_bookings': completed_bookings,
+            'revenue_this_month': revenue_this_month
+        }
+        
+        serializer = self.get_serializer(data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+class StaffTaskStatisticsView(generics.GenericAPIView):
     """Get task statistics grouped by staff for tenant."""
-    tenant = request.user
-    
-    staff_stats = StaffProfile.objects.filter(tenant=tenant).annotate(
-        total_tasks=Count('task_assignments'),
-        pending_tasks=Count('task_assignments', filter=Q(task_assignments__status='pending')),
-        in_progress_tasks=Count('task_assignments', filter=Q(task_assignments__status='in_progress')),
-        completed_tasks=Count('task_assignments', filter=Q(task_assignments__status='completed')),
-        overdue_tasks=Count('task_assignments', filter=Q(task_assignments__status='overdue'))
-    ).values(
-        'id', 'username', 'first_name', 'last_name', 'email',
-        'total_tasks', 'pending_tasks', 'in_progress_tasks', 
-        'completed_tasks', 'overdue_tasks'
-    )
-    
-    return Response(list(staff_stats), status=status.HTTP_200_OK)
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        tenant = request.user
+        
+        staff_stats = StaffProfile.objects.filter(tenant=tenant).annotate(
+            total_tasks=Count('tasks'),
+            pending_tasks=Count('tasks', filter=Q(tasks__status='pending')),
+            in_progress_tasks=Count('tasks', filter=Q(tasks__status='in_progress')),
+            completed_tasks=Count('tasks', filter=Q(tasks__status='completed')),
+            overdue_tasks=Count('tasks', filter=Q(tasks__status='overdue'))
+        ).values(
+            'id', 'username', 'first_name', 'last_name', 'email',
+            'total_tasks', 'pending_tasks', 'in_progress_tasks', 
+            'completed_tasks', 'overdue_tasks'
+        )
+        
+        return Response(list(staff_stats), status=status.HTTP_200_OK)

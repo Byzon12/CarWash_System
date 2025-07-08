@@ -276,3 +276,105 @@ class BookingCancellationSerializer(serializers.ModelSerializer):
         instance.status = 'cancelled'
         instance.save()
         return instance
+
+class PaymentInitiationSerializer(serializers.Serializer):
+    """
+    Serializer for initiating payment for a booking.
+    """
+    booking_id = serializers.IntegerField(
+        help_text=_("The ID of the booking to initiate payment for.")
+    )
+    payment_method = serializers.ChoiceField(
+        choices=[
+            ('mpesa', 'M-Pesa'),
+            ('paypal', 'PayPal'),
+            ('visa', 'Visa/Card'),
+            ('cash', 'Cash')
+        ],
+        help_text=_("The payment method to use for this booking.")
+    )
+    phone_number = serializers.CharField(
+        max_length=15,
+        required=False,
+        help_text=_("Phone number for M-Pesa payments (required for M-Pesa).")
+    )
+    
+    def validate(self, data):
+        """Validate payment initiation data."""
+        booking_id = data.get('booking_id')
+        payment_method = data.get('payment_method')
+        phone_number = data.get('phone_number')
+        
+        # Check if booking exists
+        try:
+            booking = Booking.objects.get(id=booking_id)
+        except Booking.DoesNotExist:
+            raise serializers.ValidationError(_("Booking not found."))
+        
+        # Check if booking can accept payment
+        if booking.status in ['cancelled', 'completed']:
+            raise serializers.ValidationError(
+                _("Cannot initiate payment for cancelled or completed bookings.")
+            )
+        
+        if booking.payment_status == 'paid':
+            raise serializers.ValidationError(
+                _("Payment has already been completed for this booking.")
+            )
+        
+        # Validate phone number for M-Pesa
+        if payment_method == 'mpesa':
+            if not phone_number:
+                raise serializers.ValidationError(
+                    _("Phone number is required for M-Pesa payments.")
+                )
+            
+            # Format and validate Kenyan phone number
+            phone_number = self._format_phone_number(phone_number)
+            data['phone_number'] = phone_number
+        
+        return data
+    
+    def _format_phone_number(self, phone):
+        """Format phone number to Kenyan standard."""
+        if not phone:
+            return None
+            
+        # Remove any non-digit characters
+        phone = ''.join(filter(str.isdigit, phone))
+        
+        # Handle different formats
+        if phone.startswith('0'):
+            # Convert 07XXXXXXXX to 2547XXXXXXXX
+            phone = '254' + phone[1:]
+        elif phone.startswith('7') and len(phone) == 9:
+            # Convert 7XXXXXXXX to 2547XXXXXXXX
+            phone = '254' + phone
+        elif phone.startswith('+254'):
+            # Convert +2547XXXXXXXX to 2547XXXXXXXX
+            phone = phone[1:]
+        elif not phone.startswith('254') and len(phone) == 9:
+            # Add country code
+            phone = '254' + phone
+        
+        # Validate length
+        if len(phone) != 12 or not phone.startswith('254'):
+            raise serializers.ValidationError(_("Invalid phone number format."))
+        
+        return phone
+
+class PaymentStatusSerializer(serializers.Serializer):
+    """
+    Serializer for checking payment status.
+    """
+    booking_id = serializers.IntegerField(
+        help_text=_("The ID of the booking to check payment status for.")
+    )
+    
+    def validate_booking_id(self, value):
+        """Validate that booking exists."""
+        try:
+            Booking.objects.get(id=value)
+        except Booking.DoesNotExist:
+            raise serializers.ValidationError(_("Booking not found."))
+        return value

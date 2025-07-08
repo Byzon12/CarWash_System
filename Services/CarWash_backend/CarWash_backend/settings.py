@@ -265,3 +265,35 @@ MPESA_SHORT_CODE = os.environ.get('MPESA_SHORT_CODE', '174379')
 MPESA_PASSKEY = os.environ.get('MPESA_PASSKEY', 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919')
 MPESA_CALLBACK_URL = os.environ.get('MPESA_CALLBACK_URL', 'https://mydomain.com/api/mpesa-callback/')  # Must be HTTPS
 MPESA_BASE_URL = os.environ.get('MPESA_BASE_URL', 'https://sandbox.safaricom.co.ke')
+
+# M-Pesa Configuration
+MPESA_ENVIRONMENT = 'sandbox'  # Change to 'production' for live
+MPESA_CONSUMER_KEY = 'your_consumer_key'
+MPESA_CONSUMER_SECRET = 'your_consumer_secret'
+MPESA_SHORT_CODE = '174379'  # Your business short code
+MPESA_PASSKEY = 'your_passkey'
+MPESA_CALLBACK_URL = 'https://your-domain.com/api/booking/mpesa-callback/'
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': 'booking.log',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'booking': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+    },
+}

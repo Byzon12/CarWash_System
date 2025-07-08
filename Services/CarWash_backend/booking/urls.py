@@ -1,9 +1,28 @@
 from django.urls import path
-from .views import BookingCreateView, BookingUpdateView, BookingListView, BookingListView, BookingCancellationView
+from django.conf import settings
+from django.conf.urls.static import static
+from . import views
+
 urlpatterns = [
-    path('create/', BookingCreateView.as_view(), name='booking_create'),
-    path('update/<int:pk>/', BookingUpdateView.as_view(), name='booking_update'),
-    path('list/', BookingListView.as_view(), name='booking_list'),
-    path('cancel/<int:pk>/', BookingCancellationView.as_view(), name='booking_cancel'),
+    # Customer booking management
+    path('create/', views.BookingCreateView.as_view(), name='booking-create'),
+    path('list/', views.BookingListView.as_view(), name='booking-list'),
+    path('<int:pk>/', views.BookingDetailView.as_view(), name='booking-detail'),
+    path('<int:pk>/update/', views.BookingUpdateView.as_view(), name='booking-update'),
+    path('<int:pk>/cancel/', views.BookingCancelView.as_view(), name='booking-cancel'),
     
+    # Payment management
+    path('payment/initiate/', views.PaymentInitiationView.as_view(), name='payment-initiate'),
+    path('payment/status/', views.check_payment_status, name='payment-status'),
+    
+    # Payment callbacks
+    path('mpesa-callback/', views.mpesa_callback, name='mpesa-callback'),
+    
+    # Tenant booking management (for admin/staff)
+    path('tenant/list/', views.TenantBookingListView.as_view(), name='tenant-booking-list'),
+    path('tenant/stats/', views.TenantBookingStatsView.as_view(), name='tenant-booking-stats'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
