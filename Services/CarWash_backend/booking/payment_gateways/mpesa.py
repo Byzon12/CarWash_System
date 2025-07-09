@@ -8,7 +8,7 @@ from requests.auth import HTTPBasicAuth
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
-from booking.models import Booking
+from booking.models import booking
 
 logger = logging.getLogger(__name__)
 
@@ -185,12 +185,12 @@ def mpesa_callback(request):
                     amount = item['Value']
 
             try:
-                booking = Booking.objects.get(payment_reference=checkout_request_id)
+                booking = booking.objects.get(payment_reference=checkout_request_id)
                 booking.payment_status = 'paid'
                 booking.status = 'confirmed'
                 booking.save()
                 print(f"[✅ PAID] Booking {booking.id}: KES {amount} by {phone}")
-            except Booking.DoesNotExist:
+            except booking.DoesNotExist:
                 print(f"[⚠️ NOT FOUND] Booking with CheckoutRequestID {checkout_request_id} not found")
 
         else:

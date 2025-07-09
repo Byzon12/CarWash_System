@@ -9,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 import json
 import logging
 
-from .models import Booking, BookingStatusHistory, PaymentTransaction
+from .models import booking, BookingStatusHistory, PaymentTransaction
 from .serializer import (
     BookingCreateSerializer, 
     BookingDetailSerializer, 
@@ -28,7 +28,7 @@ class BookingCreateView(generics.CreateAPIView):
 
     def get_queryset(self):
         customer_profile = self.request.user.Customer_profile
-        return Booking.objects.filter(customer=customer_profile).order_by('-created_at')
+        return booking.objects.filter(customer=customer_profile).order_by('-created_at')
 
     def perform_create(self, serializer):
         # Customer profile is set in the serializer
@@ -65,7 +65,7 @@ class BookingListView(generics.ListAPIView):
 
     def get_queryset(self):
         customer_profile = self.request.user.Customer_profile
-        queryset = Booking.objects.filter(customer=customer_profile).order_by('-created_at')
+        queryset = booking.objects.filter(customer=customer_profile).order_by('-created_at')
         
         # Apply filters
         status_filter = self.request.query_params.get('status')
@@ -93,7 +93,7 @@ class BookingDetailView(generics.RetrieveAPIView):
 
     def get_queryset(self):
         customer_profile = self.request.user.Customer_profile
-        return Booking.objects.filter(customer=customer_profile)
+        return booking.objects.filter(customer=customer_profile)
 
 class BookingUpdateView(generics.UpdateAPIView):
     """Update booking details (limited fields only)"""
@@ -102,7 +102,7 @@ class BookingUpdateView(generics.UpdateAPIView):
 
     def get_queryset(self):
         customer_profile = self.request.user.Customer_profile
-        return Booking.objects.filter(customer=customer_profile)
+        return booking.objects.filter(customer=customer_profile)
 
     def perform_update(self, serializer):
         booking = serializer.save()
@@ -114,7 +114,7 @@ class BookingCancelView(generics.UpdateAPIView):
 
     def get_queryset(self):
         customer_profile = self.request.user.Customer_profile
-        return Booking.objects.filter(customer=customer_profile)
+        return booking.objects.filter(customer=customer_profile)
 
     def patch(self, request, *args, **kwargs):
         booking = self.get_object()
@@ -285,8 +285,8 @@ def mpesa_callback(request):
         
         # Find the booking
         try:
-            booking = Booking.objects.get(mpesa_checkout_request_id=checkout_request_id)
-        except Booking.DoesNotExist:
+            booking = booking.objects.get(mpesa_checkout_request_id=checkout_request_id)
+        except booking.DoesNotExist:
             logger.error(f"Booking not found for CheckoutRequestID: {checkout_request_id}")
             return JsonResponse({"ResultCode": 0, "ResultDesc": "Accepted"})
         
@@ -381,8 +381,8 @@ def check_payment_status(request):
     
     try:
         customer_profile = request.user.Customer_profile
-        booking = Booking.objects.get(id=booking_id, customer=customer_profile)
-    except Booking.DoesNotExist:
+        booking = booking.objects.get(id=booking_id, customer=customer_profile)
+    except booking.DoesNotExist:
         return Response({'error': 'Booking not found'}, status=status.HTTP_404_NOT_FOUND)
     
     # For M-Pesa, query transaction status if needed
@@ -416,7 +416,7 @@ class TenantBookingListView(generics.ListAPIView):
     def get_queryset(self):
         # Assuming tenant authentication
         tenant = self.request.user  # Adjust based on your tenant auth
-        return Booking.objects.filter(location__tenant=tenant).order_by('-created_at')
+        return booking.objects.filter(location__tenant=tenant).order_by('-created_at')
 
 class TenantBookingStatsView(generics.GenericAPIView):
     """Get booking statistics for tenant dashboard"""
@@ -426,22 +426,22 @@ class TenantBookingStatsView(generics.GenericAPIView):
         tenant = request.user  # Adjust based on your tenant auth
         
         # Calculate stats
-        total_bookings = Booking.objects.filter(location__tenant=tenant).count()
-        pending_bookings = Booking.objects.filter(location__tenant=tenant, status='pending').count()
-        confirmed_bookings = Booking.objects.filter(location__tenant=tenant, status='confirmed').count()
-        completed_bookings = Booking.objects.filter(location__tenant=tenant, status='completed').count()
-        cancelled_bookings = Booking.objects.filter(location__tenant=tenant, status='cancelled').count()
+        total_bookings = booking.objects.filter(location__tenant=tenant).count()
+        pending_bookings = booking.objects.filter(location__tenant=tenant, status='pending').count()
+        confirmed_bookings = booking.objects.filter(location__tenant=tenant, status='confirmed').count()
+        completed_bookings = booking.objects.filter(location__tenant=tenant, status='completed').count()
+        cancelled_bookings = booking.objects.filter(location__tenant=tenant, status='cancelled').count()
         
         # Revenue stats
         from django.db.models import Sum
-        total_revenue = Booking.objects.filter(
-            location__tenant=tenant, 
+        total_revenue = booking.objects.filter(
+            location__tenant=tenant,
             payment_status='paid'
         ).aggregate(Sum('total_amount'))['total_amount__sum'] or 0
         
         # Today's bookings
         today = timezone.now().date()
-        today_bookings = Booking.objects.filter(
+        today_bookings = booking.objects.filter(
             location__tenant=tenant,
             booking_date__date=today
         ).count()

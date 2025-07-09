@@ -7,9 +7,12 @@ from Users.models import CustomerProfile
 import uuid
 from datetime import timedelta
 
-class Booking(models.Model):
+
+
+class booking(models.Model):
     """
-    Enhanced Model representing a customer booking for a car wash service.
+    Enhanced Model representing a customer booking for a car wash location and service.
+    This model includes comprehensive fields for managing bookings, including customer details,
     """
     STATUS_CHOICES = [
         ('draft', 'Draft'),
@@ -20,14 +23,8 @@ class Booking(models.Model):
         ('cancelled', 'Cancelled'),
         ('no_show', 'No Show'),
     ]
-
-    PAYMENT_METHOD_CHOICES = [
-        ('mpesa', 'M-Pesa'),
-        ('paypal', 'PayPal'),
-        ('visa', 'Visa'),
-        ('cash', 'Cash'),
-        ('bank_transfer', 'Bank Transfer'),
-    ]
+    
+  
 
     PAYMENT_STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -38,9 +35,9 @@ class Booking(models.Model):
         ('expired', 'Expired'),
     ]
 
-    # Core booking fields
+    # main booking fields
     id = models.AutoField(primary_key=True, help_text="Unique identifier for the booking.")
-    booking_number = models.CharField(max_length=20, unique=False, editable=False, help_text="Human-readable booking reference", default=None, blank=True, null=True)
+    booking_number = models.CharField(max_length=20, unique=True, editable=False, help_text="Human-readable booking reference", blank=True, null=True)
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='bookings', help_text="The car wash location where the booking is made.")
     customer = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name='bookings', help_text="The customer making the booking.")
     location_service = models.ForeignKey(LocationService, on_delete=models.CASCADE, related_name='bookings', help_text="The specific service package booked at this location.")
@@ -48,7 +45,7 @@ class Booking(models.Model):
     # Booking timing
     booking_date = models.DateTimeField(help_text="The start time of the booking.")
     time_slot_end = models.DateTimeField(blank=True, null=True, help_text="The calculated end time of the booking based on service duration.")
-    duration_minutes = models.PositiveIntegerField(default=60, help_text="Service duration in minutes")
+    
     
     # Customer details for this booking
     customer_name = models.CharField(max_length=100, help_text="Customer name for this booking", blank=True, null=True)
@@ -58,9 +55,6 @@ class Booking(models.Model):
     special_instructions = models.TextField(blank=True, null=True, help_text="Special customer instructions")
     
     # Pricing
-    base_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Base service amount,", default=0)
-    tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Tax amount")
-    discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Discount amount")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, help_text="Total amount to be paid", default=0)
     
     # Status tracking
@@ -85,8 +79,8 @@ class Booking(models.Model):
     payment_completed_at = models.DateTimeField(null=True, blank=True, help_text="When payment was completed")
 
     class Meta:
-        verbose_name = "Booking"
-        verbose_name_plural = "Bookings"
+        verbose_name = "booking"
+        verbose_name_plural = "bookings"
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['booking_date']),
@@ -103,11 +97,11 @@ class Booking(models.Model):
             self.booking_number = self.generate_booking_number()
         
         # Calculate end time if not set
-        if not self.time_slot_end and self.booking_date:
-            self.time_slot_end = self.booking_date + timedelta(minutes=self.duration_minutes)
+        if not self.time_slot_end and self.booking_date and self.location_service:
+            self.time_slot_end = self.booking_date + self.location_service.duration
         
         # Calculate total amount
-        self.total_amount = self.base_amount + self.tax_amount - self.discount_amount
+        self.total_amount = self.location_service.price if self.location_service else 0
         
         # Set payment completed timestamp
         if self.payment_status == 'paid' and not self.payment_completed_at:
@@ -140,12 +134,12 @@ class Booking(models.Model):
         if self.location_service and self.location and self.location_service.location != self.location:
             raise ValidationError("Selected service does not belong to the specified location.")
         
-        # Validate phone number format for M-Pesa
+        # Validate phone number format for M-Pesa if the payment method is M-Pesa
         if self.payment_method == 'mpesa' and self.customer_phone:
             if not self.is_valid_kenyan_phone(self.customer_phone):
                 raise ValidationError("Invalid Kenyan phone number format for M-Pesa payments.")
 
-    def is_valid_kenyan_phone(self, phone):
+    def is_valid_kenyan_phone(sef, phone):
         """Validate Kenyan phone number format"""
         import re
         phone = re.sub(r'\D', '', phone)
@@ -178,7 +172,7 @@ class Booking(models.Model):
 
 class BookingStatusHistory(models.Model):
     """Track booking status changes"""
-    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='status_history')
+    booking = models.ForeignKey(booking, on_delete=models.CASCADE, related_name='status_history')
     from_status = models.CharField(max_length=20, blank=True, null=True)
     to_status = models.CharField(max_length=20)
     reason = models.TextField(blank=True, null=True)
@@ -198,10 +192,18 @@ class PaymentTransaction(models.Model):
         ('cancelled', 'Cancelled'),
         ('refunded', 'Refunded'),
     ]
+    
+    PAYMENT_METHOD_CHOICES = [
+    ('mpesa', 'M-Pesa'),
+    ('paypal', 'PayPal'),
+    ('visa', 'Visa'),
+    ('cash', 'Cash'),
+    ('bank_transfer', 'Bank Transfer'),
+    ]
 
-    booking = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='payment_transactions')
+    booking = models.ForeignKey(booking, on_delete=models.CASCADE, related_name='payment_transactions')
     transaction_id = models.CharField(max_length=100, unique=True)
-    payment_method = models.CharField(max_length=20, choices=Booking.PAYMENT_METHOD_CHOICES)
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='KES')
     status = models.CharField(max_length=20, choices=TRANSACTION_STATUS_CHOICES, default='initiated')

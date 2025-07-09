@@ -19,8 +19,8 @@ def get_location_model():
     return Location
 
 def get_booking_model():
-    from booking.models import Booking
-    return Booking
+    from booking.models import booking
+    return booking
 
 def get_location_service_model():
     from Location.models import LocationService
@@ -434,18 +434,18 @@ class TaskSerializer(serializers.ModelSerializer):
         if request and hasattr(request, 'user'):
             tenant = request.user
             Location = get_location_model()
-            Booking = get_booking_model()
-            
+            booking = get_booking_model()
+
             self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
-            self.fields['booking_id'].queryset = Booking.objects.filter(tenant=tenant)
+            self.fields['booking_id'].queryset = booking.objects.filter(tenant=tenant)
             # Filter StaffProfile by tenant field
             self.fields['assigned_to_id'].queryset = StaffProfile.objects.filter(tenant=tenant)
         else:
             # Fallback to empty querysets
             Location = get_location_model()
-            Booking = get_booking_model()
+            booking = get_booking_model()
             self.fields['location_id'].queryset = Location.objects.none()
-            self.fields['booking_id'].queryset = Booking.objects.none()
+            self.fields['booking_id'].queryset = booking.objects.none()
             self.fields['assigned_to_id'].queryset = StaffProfile.objects.none()
     
     def get_next_possible_status(self, obj):

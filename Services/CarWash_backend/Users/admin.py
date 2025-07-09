@@ -1,7 +1,7 @@
 
 from django.contrib import admin
 from Tenant.models import TenantProfile,Tenant, Task
-from booking.models import Booking
+from booking.models import booking
 from Staff.models import StaffProfile,StaffRole
 from Location.models import Location, Service, LocationService
 from Staff.models import StaffProfile, StaffRole,Staff
@@ -167,7 +167,7 @@ class LocationServiceAdmin(admin.ModelAdmin):
         return False
 
 # Registering Booking model in the admin interface
-@admin.register(Booking)
+@admin.register(booking)
 class BookingAdmin(admin.ModelAdmin):
     """
     Admin interface for Booking model.

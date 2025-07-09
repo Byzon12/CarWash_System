@@ -81,7 +81,7 @@ class TenantProfile(models.Model):
         verbose_name_plural = 'Tenant Profiles'
 
     #model to hanldle Task creation and assignmening task
-from booking.models import Booking
+from booking.models import booking
 from Location.models import Location
 from Staff.models import StaffProfile, Staff
 class Task(models.Model):
@@ -103,7 +103,7 @@ class Task(models.Model):
     task_id = models.AutoField(primary_key=True)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
     location = models.ForeignKey(Location, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
-    booking_made = models.ForeignKey(Booking, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
+    booking_made = models.ForeignKey(booking, on_delete=models.CASCADE, related_name='tasks', null=True, blank=True)
     description = models.TextField(blank=True, null=True)
     assigned_to = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, related_name='tasks', null=True, blank=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')

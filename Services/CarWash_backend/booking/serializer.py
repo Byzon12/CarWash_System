@@ -15,17 +15,17 @@ from Location.serializer import LocationServiceSerializer, LocationSerializer
 
 
 from .models import CustomerProfile
-from .models import Location, LocationService, Booking
+from .models import Location, LocationService, booking
 
 # Import models
-from booking.models import Booking
+from booking.models import booking
 
 class BookingSerializer(serializers.ModelSerializer):
     """
     Serializer for the Booking model.
     """
     class Meta:
-        model = Booking
+        model = booking
         fields = '__all__'
         read_only_fields = [
             'customer', 
@@ -68,7 +68,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     )
 
     class Meta:
-        model = Booking
+        model = booking
         fields = [
             'location',
             'status',
@@ -105,7 +105,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
      #   if booking_date <= timezone.now():
           #  raise serializers.ValidationError(_("Booking date must be in the future."))
         # Check if the booking date conflicts with existing bookings
-        existing_bookings = Booking.objects.filter(
+        existing_bookings = booking.objects.filter(
             location=data['location'],
             booking_date=booking_date,
             status__in=['pending', 'confirmed']
@@ -138,7 +138,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
         except CustomerProfile.DoesNotExist:
             raise serializers.ValidationError({"error": "No CustomerProfile associated with this user."})
 
-        booking = Booking.objects.create(**validated_data)
+        booking = booking.objects.create(**validated_data)
         return booking
 
 
@@ -150,7 +150,7 @@ class BookingUpdateSerializer(serializers.ModelSerializer):
     and payment reference. It does not allow changing the customer or location.
     """
     class Meta:
-        model = Booking
+        model = booking
         fields =  ['customer', 'booking_date', 'status', 'payment_status', 'payment_reference', 'location', 'location_service']
         read_only_fields = ['customer', 'location', 'created_at', 'updated_at']
 
@@ -183,7 +183,7 @@ class BookingUpdateSerializer(serializers.ModelSerializer):
         if instance.status in ['cancelled', 'completed']:
             raise serializers.ValidationError(_("Cannot update a booking that is cancelled or completed."))
         # Check if the booking date conflicts with existing bookings
-        existing_bookings = Booking.objects.filter(
+        existing_bookings = booking.objects.filter(
             location=instance.location,
             booking_date=booking_date,
         ).exclude(id=instance.id)   # Exclude the current booking instance
@@ -228,7 +228,7 @@ class BookingDetailSerializer(serializers.ModelSerializer):
     location = LocationSerializer(read_only=True, help_text=_("The car wash location where the booking is made."))
     location_service = LocationServiceSerializer(read_only=True, help_text=_("The specific service package booked at this location."))
     class Meta:
-        model = Booking
+        model = booking
         fields = '__all__'
         read_only_fields = [
             'customer', 
@@ -260,7 +260,7 @@ class BookingCancellationSerializer(serializers.ModelSerializer):
     It does not allow changing any other fields.
     """
     class Meta:
-        model = Booking
+        model = booking
         fields = ['status']
         read_only_fields = ['customer', 'location', 'location_service', 'booking_date', 'amount', 'payment_method', 'is_prepaid']
 
@@ -307,8 +307,8 @@ class PaymentInitiationSerializer(serializers.Serializer):
         
         # Check if booking exists
         try:
-            booking = Booking.objects.get(id=booking_id)
-        except Booking.DoesNotExist:
+            booking = booking.objects.get(id=booking_id)
+        except booking.DoesNotExist:
             raise serializers.ValidationError(_("Booking not found."))
         
         # Check if booking can accept payment
@@ -374,7 +374,7 @@ class PaymentStatusSerializer(serializers.Serializer):
     def validate_booking_id(self, value):
         """Validate that booking exists."""
         try:
-            Booking.objects.get(id=value)
-        except Booking.DoesNotExist:
+            booking.objects.get(id=value)
+        except booking.DoesNotExist:
             raise serializers.ValidationError(_("Booking not found."))
         return value
