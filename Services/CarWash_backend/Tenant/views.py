@@ -29,8 +29,8 @@ def get_location_model():
     return Location
 
 def get_booking_model():
-    from booking.models import Booking
-    return Booking
+    from booking.models import booking
+    return booking
 
 # API view to handle tenant login
 class TenantLoginView(generics.GenericAPIView):
@@ -326,7 +326,7 @@ class TenantDashboardStatsView(generics.GenericAPIView):
             created_at__month=current_month,
             created_at__year=current_year
         ).aggregate(
-            total=models.Sum('amount')
+            total=models.Sum('total_amount', default=Decimal('0.00'))
         )['total'] or Decimal('0.00')
         
         data = {

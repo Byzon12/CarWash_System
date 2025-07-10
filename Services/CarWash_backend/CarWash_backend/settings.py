@@ -38,7 +38,7 @@ DEBUG = True
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-        #"rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
        "Staff.Authentication.StaffAuthentication",  # Custom staff authentication
        
@@ -268,10 +268,10 @@ MPESA_BASE_URL = os.environ.get('MPESA_BASE_URL', 'https://sandbox.safaricom.co.
 
 # M-Pesa Configuration
 MPESA_ENVIRONMENT = 'sandbox'  # Change to 'production' for live
-MPESA_CONSUMER_KEY = 'your_consumer_key'
-MPESA_CONSUMER_SECRET = 'your_consumer_secret'
+MPESA_CONSUMER_KEY = 'rLQ2D5DBhGoyHwgrw15dGa0U0V3sUFvO0oGhjMaPpJGy7qKE'
+MPESA_CONSUMER_SECRET = 'LwXCBI1nRLDps9Ta5Zf1GgcQGRn5hZG50xILRwUP62DtyAGszGXy4nfxZoIMt9DY'
 MPESA_SHORT_CODE = '174379'  # Your business short code
-MPESA_PASSKEY = 'your_passkey'
+MPESA_PASSKEY = 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919'
 MPESA_CALLBACK_URL = 'https://your-domain.com/api/booking/mpesa-callback/'
 
 # Logging configuration
@@ -297,3 +297,36 @@ LOGGING = {
         },
     },
 }
+
+# Find your current ALLOWED_HOSTS and update it
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '0.0.0.0',
+    '192.168.137.43', # my Lenovo IP
+]
+
+# Update CORS settings for cross-origin requests
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+
+# Or be more specific with allowed origins
+CORS_ALLOWED_ORIGINS = [
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3000",
+    "http://41.89.64.70:8000",  # Replace with your Lenovo IP
+    # Add HP laptop IP if needed for web testing
+]
+
+# Enable CORS for all headers (development only)
+CORS_ALLOW_HEADERS = [
+    'authorization',
+    'content-type', 
+    'x-csrftoken',
+    'x-requested-with', 
+    'accept',
+    'accept-encoding',
+    'origin',
+    'user-agent',   
+]
+
+CORS_ALLOW_CREDENTIALS = True

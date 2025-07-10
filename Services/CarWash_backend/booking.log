@@ -1,0 +1,11 @@
+Booking created: BK202507090670 by admin16
+Booking created: BK202507099491 by admin16
+Failed to get M-Pesa access token: 400 Client Error: Bad Request for url: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials
+M-Pesa STK Push failed for BK202507099491: Access token error: 400 Client Error: Bad Request for url: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials
+M-Pesa payment initiation failed for booking BK202507099491: {'success': False, 'error': 'Access token error: 400 Client Error: Bad Request for url: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', 'response_description': 'Payment initiation failed'}
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507099491: {'MerchantRequestID': '4fa1-4cef-a2ac-ee85b585aad58419', 'CheckoutRequestID': 'ws_CO_10072025120357936700764847', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507099491
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507099491: {'MerchantRequestID': '2125-44ce-973c-4255e836d09145459', 'CheckoutRequestID': 'ws_CO_10072025124210851794714584', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507099491

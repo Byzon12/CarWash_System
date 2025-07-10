@@ -156,7 +156,7 @@ class PaymentInitiationView(generics.GenericAPIView):
     serializer_class = PaymentInitiationSerializer
     permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
+    def post(self, request):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         
@@ -166,25 +166,25 @@ class PaymentInitiationView(generics.GenericAPIView):
         
         try:
             customer_profile = request.user.Customer_profile
-            booking = Booking.objects.get(id=booking_id, customer=customer_profile)
-        except Booking.DoesNotExist:
+            booking_instance = booking.objects.get(id=booking_id, customer=customer_profile)
+        except booking_instance.DoesNotExist:
             return Response({
                 'error': 'Booking not found or you do not have permission to access it.'
             }, status=status.HTTP_404_NOT_FOUND)
         
         # Update payment method and phone number if provided
-        booking.payment_method = payment_method
+        booking_instance.payment_method = payment_method
         if phone_number:
-            booking.customer_phone = phone_number
-        booking.save()
-        
+            booking_instance.customer_phone = phone_number
+        booking_instance.save()
+
         # Initiate payment based on method
         if payment_method == 'mpesa':
-            result = initiate_mpesa_payment(booking)
+            result = initiate_mpesa_payment(booking_instance)
         elif payment_method == 'paypal':
-            result = initiate_paypal_payment(booking)
+            result = initiate_paypal_payment(booking_instance)
         elif payment_method == 'visa':
-            result = initiate_visa_payment(booking)
+            result = initiate_visa_payment(booking_instance)
         else:
             return Response({
                 'error': 'Unsupported payment method'

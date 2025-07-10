@@ -38,110 +38,272 @@ class BookingSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
 
-# serialier clas to create a booking
+# serializer class to create a booking
 class BookingCreateSerializer(serializers.ModelSerializer):
     """
     Serializer for creating a booking.
-    This serializer validates the booking date to ensure it is in the future
-    and includes fields for the booking details.
-    It does not allow modification of the booking status or payment status.
-    It also ensures that the payment reference is unique.
-    It is used to create a new booking instance.
-    It includes fields for the location, customer, service package, booking date,
-    amount, payment method, and whether the booking is prepaid.
+    Handles all booking fields with proper validation and automatic field population.
     """
+    # Required fields for booking creation, write-only fields will be auto-populated
     location = serializers.PrimaryKeyRelatedField(
         queryset=Location.objects.all(),
-      
-        write_only=False,
+        write_only=True,
         help_text=_("The car wash location where the booking is made.")
     )
     location_service = serializers.PrimaryKeyRelatedField(
         queryset=LocationService.objects.all(),
-       
-        write_only=False,
+        write_only=True,
         help_text=_("The specific service package booked at this location.")
     )
-    customer = serializers.PrimaryKeyRelatedField(
-        read_only=True,
-        help_text=_("The customer making the booking.")
+    booking_date = serializers.DateTimeField(
+        write_only=True,
+        help_text=_("The start date and time of the booking.")
     )
+    
+    # Optional customer details (can override profile defaults)
+
+    customer_phone = serializers.CharField(
+        max_length=15, 
+        required=False, 
+        allow_blank=True,
+        help_text=_("Customer phone number (required for M-Pesa payments)")
+    )
+   
+    vehicle_details = serializers.CharField(
+        required=False, 
+        allow_blank=True,
+        help_text=_("Vehicle make, model, color, license plate, etc.")
+    )
+    special_instructions = serializers.CharField(
+        required=False, 
+        allow_blank=True,
+        help_text=_("Special instructions for the service")
+    )
+    
+    # Payment preferences
+    payment_method = serializers.ChoiceField(
+        choices=booking.PAYMENT_METHOD_CHOICES,
+        required=False,
+        help_text=_("Preferred payment method")
+    )
+    
+    # Optional flags
+    requires_confirmation = serializers.BooleanField(
+        default=True,
+        help_text=_("Whether booking needs staff confirmation")
+    )
+    send_reminders = serializers.BooleanField(
+        default=True,
+        help_text=_("Whether to send booking reminders")
+    )
+    
+    # Read-only fields (auto-populated)
+    customer_email = serializers.EmailField(read_only=True,
+        source='customer.email',
+        help_text=_("Customer email from profile (read-only)"))
+    customer_name = serializers.PrimaryKeyRelatedField(
+        source='customer.first_name', 
+        read_only=True, 
+        help_text=_("Customer name from profile")
+    )
+    customer = serializers.PrimaryKeyRelatedField(read_only=True,
+        help_text=_("Customer ID from profile (read-only)"))
+    booking_number = serializers.CharField(read_only=True)
+    status = serializers.CharField(read_only=True)
+    payment_status = serializers.CharField(read_only=True)
+    total_amount = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    time_slot_end = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = booking
         fields = [
+            # Core booking fields
             'location',
-            'status',
-            'payment_status',
-            'customer',
-            'location_service',
+            'location_service', 
             'booking_date',
-            'amount',
+            
+            # Customer details
+            
+            'customer_phone',
+           
+            'vehicle_details',
+            'special_instructions',
+            
+            # Payment and preferences
             'payment_method',
-            'is_prepaid'
+            'requires_confirmation',
+            'send_reminders',
+            
+            # Read-only fields
+            'customer',
+            'booking_number',
+            'status',
+            'customer_name',
+            'customer_email',
+            'payment_status',
+            'total_amount',
+            'time_slot_end',
+            'created_at',
         ]
-        read_only_fields = ['status', 'payment_status', 'payment_reference', 'created_at', 'updated_at','amount', 'customer']
+        read_only_fields = [
+            'customer',
+            'booking_number', 
+            'status', 
+            'customer_name',
+            'customer_email',
+            'payment_status',
+            'total_amount',
+            'time_slot_end',
+            'payment_reference',
+            'mpesa_checkout_request_id',
+            'mpesa_transaction_id',
+            'is_prepaid',
+            'confirmed_at',
+            'payment_completed_at',
+            'created_at', 
+            'updated_at'
+        ]
+
+    def validate_booking_date(self, value):
+        """Validate that booking date is in the future"""
+        if value <= timezone.now():
+            raise serializers.ValidationError(_("Booking date must be in the future."))
+        return value
+    
+    def validate_customer_phone(self, value):
+        """Validate phone number format if provided"""
+        if value:
+            # Validate Kenyan phone number format and it as required for M-Pesa payments
+            if not value.startswith(('07', '+254', '254', '01')):
+                raise serializers.ValidationError(_("Phone number must start with '07', '+254', '254', or '01'."))
+            # Remove non-digit characters and check length
+            phone = ''.join(filter(str.isdigit, value))
+            if phone.startswith('0'):
+                phone = '254' + phone[1:]
+            elif phone.startswith('7') and len(phone) == 9:
+                phone = '254' + phone
+            elif phone.startswith('+254'):
+                phone = phone[1:]
+            elif not phone.startswith('254') and len(phone) == 9:
+                phone = '254' + phone
+            # Validate length
+            # Phone number should be 12 digits long after formatting
+            if not phone.startswith('254') or len(phone) != 12:
+                raise serializers.ValidationError(_("Phone number must be 12 digits long after formatting."))
+            # Check if phone number length is between 9 and 12 digits
+            if len(phone) < 9 or len(phone) > 12:
+                raise serializers.ValidationError(_("Invalid phone number format."))
+        return value
 
     def validate(self, data):
-        """validate the written data for the booking."""
-        locate_service = data.get('location_service')
+        """Object-level validation"""
+        location = data.get('location')
+        location_service = data.get('location_service')
         booking_date = data.get('booking_date')
+        payment_method = data.get('payment_method')
+        customer_phone = data.get('customer_phone')
 
-        # Check if the location service is provided
-        if not data.get('location'):
-            raise serializers.ValidationError(_("Location is required."))
-        if not locate_service:
-            raise serializers.ValidationError(_("Location service is required."))
-        
-        #check if the location service provide belogns to the location
-        if locate_service.location != data['location']:
-            raise serializers.ValidationError(_("The selected service does not belong to the specified location."))
-        # Check if the booking date is provided
-        if not booking_date:
-            raise serializers.ValidationError(_("Booking date is required."))
-        # Check if the booking date is in the future
-        
+        # Validate location service belongs to location
+        if location_service and location and location_service.location != location:
+            raise serializers.ValidationError({
+                'location_service': _("The selected service does not belong to the specified location.")
+            })
 
-     #   if booking_date <= timezone.now():
-          #  raise serializers.ValidationError(_("Booking date must be in the future."))
-        # Check if the booking date conflicts with existing bookings
-        existing_bookings = booking.objects.filter(
-            location=data['location'],
-            booking_date=booking_date,
-            status__in=['pending', 'confirmed']
-        )
+        # Check for booking conflicts (same location and overlapping time)
+        if location and booking_date and location_service:
+            # Calculate end time for conflict checking
+            end_time = booking_date + location_service.duration
+            
+            # Check for overlapping bookings
+            conflicting_bookings = booking.objects.filter(
+                location=location,
+                status__in=['pending', 'confirmed', 'in_progress'],
+                booking_date__lt=end_time,
+                time_slot_end__gt=booking_date
+            )
+            
+            if conflicting_bookings.exists():
+                raise serializers.ValidationError({
+                    'booking_date': _("This time slot conflicts with existing bookings.")
+                })
 
-        if existing_bookings.exists():
-            raise serializers.ValidationError(_("Booking date conflicts with existing bookings."))
         
-        # set the amount based on the location service price
-        data['amount'] = locate_service.price
-        # Set the status to 'pending' by default
-        data['status'] = 'pending'
-        data['payment_status'] = 'pending'
-        # Set the payment reference to None by default
-        data['payment_reference'] = None
-        # Set the is_prepaid field to False by default
-        data['is_prepaid'] = False
-        
-    #
+        if payment_method == 'mpesa':
+            if not customer_phone:
+                # Try to get phone from user profile
+                request = self.context.get('request')
+                if request and hasattr(request.user, 'Customer_profile'):
+                    profile_phone = getattr(request.user.Customer_profile, 'phone_number', None)
+                    if not profile_phone:
+                        raise serializers.ValidationError({
+                            'customer_phone': _("Phone number is required for M-Pesa payments.")
+                        })
+                else:
+                    raise serializers.ValidationError({
+                        'customer_phone': _("Phone number is required for M-Pesa payments.")
+                    })
 
         return data
+
     def create(self, validated_data):
-        """
-        Create a new booking instance.
-        
-        """
+        """Create a new booking instance with auto-populated fields"""
         request = self.context.get('request')
+        
+        # Get customer profile
         try:
-            validated_data['customer'] = request.user.Customer_profile
-        except CustomerProfile.DoesNotExist:
-            raise serializers.ValidationError({"error": "No CustomerProfile associated with this user."})
+            customer_profile = request.user.Customer_profile
+            validated_data['customer'] = customer_profile
+        except AttributeError:
+            raise serializers.ValidationError({
+                'customer': _("No customer profile associated with this user.")
+            })
 
-        booking = booking.objects.create(**validated_data)
-        return booking
+        # Auto-populate customer details from profile if not provided
+        if not validated_data.get('customer_name'):
+            validated_data['customer_name'] = f"{customer_profile.first_name} {customer_profile.last_name}".strip()
+        
+        if not validated_data.get('customer_email'):
+            validated_data['customer_email'] = customer_profile.email
+        
+        if not validated_data.get('customer_phone'):
+            validated_data['customer_phone'] = getattr(customer_profile, 'phone_number', '')
 
+        # Set default status
+        validated_data['status'] = 'draft'
+        validated_data['payment_status'] = 'pending'
+        
+        # Create the booking (save method will handle total_amount and time_slot_end calculation)
+        booking_instance = booking.objects.create(**validated_data)
+        
+        return booking_instance
 
+    def to_representation(self, instance):
+        """Custom representation with additional computed fields"""
+        data = super().to_representation(instance)
+        
+        # Add location and service details
+        if instance.location:
+            data['location_details'] = {
+                'id': instance.location.id,
+                'name': instance.location.name,
+                'address': instance.location.address,
+            }
+        
+        if instance.location_service:
+            data['service_details'] = {
+                'id': instance.location_service.id,
+                'name': instance.location_service.name,
+                'duration': str(instance.location_service.duration),
+                'price': instance.location_service.price,
+                'description': instance.location_service.description,
+            }
+        
+        # Add duration in minutes for frontend convenience
+        if instance.location_service and instance.location_service.duration:
+            total_seconds = instance.location_service.duration.total_seconds()
+            data['duration_minutes'] = int(total_seconds / 60)
+        
+        return data
 #class serialier to update a booking
 class BookingUpdateSerializer(serializers.ModelSerializer):
     """
@@ -307,17 +469,17 @@ class PaymentInitiationSerializer(serializers.Serializer):
         
         # Check if booking exists
         try:
-            booking = booking.objects.get(id=booking_id)
+            booking_instance = booking.objects.get(id=booking_id)
         except booking.DoesNotExist:
             raise serializers.ValidationError(_("Booking not found."))
         
         # Check if booking can accept payment
-        if booking.status in ['cancelled', 'completed']:
+        if booking_instance.status in ['cancelled', 'completed']:
             raise serializers.ValidationError(
                 _("Cannot initiate payment for cancelled or completed bookings.")
             )
         
-        if booking.payment_status == 'paid':
+        if booking_instance.payment_status == 'paid':
             raise serializers.ValidationError(
                 _("Payment has already been completed for this booking.")
             )

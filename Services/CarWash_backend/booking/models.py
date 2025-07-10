@@ -23,7 +23,14 @@ class booking(models.Model):
         ('cancelled', 'Cancelled'),
         ('no_show', 'No Show'),
     ]
-    
+    PAYMENT_METHOD_CHOICES = [
+        ('mpesa', 'M-Pesa'),
+        ('paypal', 'PayPal'),
+        ('visa', 'Visa'),
+        ('cash', 'Cash'),
+        ('bank_transfer', 'Bank Transfer'),
+        ]
+
   
 
     PAYMENT_STATUS_CHOICES = [
