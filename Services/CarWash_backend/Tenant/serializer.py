@@ -10,9 +10,11 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.db.models import Q
 from django.contrib.auth.hashers import check_password
+from decimal import Decimal
 
 from .models import TenantProfile, Tenant, CarCheckIn, Task
 from Staff.models import StaffProfile, StaffRole, Staff
+
 # Import models to avoid circular import issues
 def get_location_model():
     from Location.models import Location
@@ -26,80 +28,88 @@ def get_location_service_model():
     from Location.models import LocationService
     return LocationService
 
-# TenantProfile Serializer
+# Enhanced TenantProfile Serializer with standardized response format
 class TenantProfileSerializer(serializers.ModelSerializer):
     tenant = serializers.StringRelatedField(read_only=True)
     name = serializers.CharField(source='tenant.name', read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
     image_tag = serializers.ReadOnlyField(read_only=True)
+    total_staff = serializers.SerializerMethodField(read_only=True)
+    total_locations = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = TenantProfile
-        fields = '__all__'
-     
-    # method to validate bussiness email, bussiness_name and phone number
+        fields = [
+            'id', 'tenant', 'name', 'business_name', 'business_email', 'username',
+            'first_name', 'last_name', 'logo', 'phone_number', 'address',
+            'total_staff', 'total_locations', 'image_tag', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'tenant', 'created_at', 'updated_at']
+
+    def get_total_staff(self, obj):
+        """Get total staff count for this tenant."""
+        return StaffProfile.objects.filter(tenant=obj.tenant).count()
+
+    def get_total_locations(self, obj):
+        """Get total locations count for this tenant."""
+        Location = get_location_model()
+        return Location.objects.filter(tenant=obj.tenant).count()
 
     def validate(self, data):
-        """custom validation to ensure business email, business name and phone number are valid and unique."""
+        """Custom validation to ensure business email, business name and phone number are valid and unique."""
         phone_number = data.get('phone_number')
-        # validate bussiness email if it ends with @tenant.com
-        business_email = data.get('bussiness_email')
+        business_email = data.get('business_email')
+        
+        # Validate business email domain
         if business_email and not business_email.endswith('@tenant.com'):
             raise serializers.ValidationError({
-                'bussiness_email': _('Business email must be a valid tenant email.')
+                'business_email': _('Business email must be a valid tenant email ending with @tenant.com.')
             })
-        # validate phone number if it is not empty and does not start with +254
+        
+        # Validate phone number format
         if phone_number and not phone_number.startswith('+254'):
             raise serializers.ValidationError({
-                'phone_number':( _('Phone number must be in international format. must start with +254.'))
+                'phone_number': _('Phone number must be in international format starting with +254.')
             })
-      
+        
         return data
 
-    # validate if the business name is already taken 
-    # this is to ensure that the business name is unique across all tenant profiles
-    # during update of tenant profile, we do not check if the business name is already taken
-    
     def validate_business_name(self, value):
-        """Validate that the business name is unique. during creation of tenant profile. but not during update."""
+        """Validate that the business name is unique during creation but not during update."""
         if self.instance:
-            # if no change, return the existing value
+            # During update - only check if value has changed
             if self.instance.business_name == value:
-            # No change in business name, so we can safely return the existing value
                 return value
-        # Check if the business name already exists in other tenant profiles
-        if TenantProfile.objects.filter(business_name__iexact=value).exclude(pk=self.instance.pk if self.instance else None).exists():
-            raise serializers.ValidationError(_('Business name already exists.'))
-        # This check is only performed during creation of tenant profile
+            # Check uniqueness excluding current instance
+            if TenantProfile.objects.filter(business_name__iexact=value).exclude(pk=self.instance.pk).exists():
+                raise serializers.ValidationError(_('Business name already exists.'))
+        else:
+            # During creation - check uniqueness across all profiles
+            if TenantProfile.objects.filter(business_name__iexact=value).exists():
+                raise serializers.ValidationError(_('Business name already exists.'))
         
-            return value
-        if TenantProfile.objects.filter(business_name__iexact=value).exists():
-            raise serializers.ValidationError(_('Business name already exists.'))
         return value
 
-# perform update method to ensure that the tenant profile is updated correctly
-   
     def create(self, validated_data):
         """Create a new tenant profile instance."""
         request = self.context.get('request')
         tenant = request.user if hasattr(request, 'user') and hasattr(request.user, 'tenant') else None
         if not tenant:
-            raise ValidationError(_('Tenant must be set.'))
+            raise ValidationError(_('Tenant must be authenticated.'))
         validated_data['tenant'] = tenant
         return super().create(validated_data)
 
-    #serializer method to handle  tenant existing profile update
     def update(self, instance, validated_data):
         """Update an existing tenant profile instance."""
         for field in ['business_name', 'business_email', 'username', 'first_name', 
                       'last_name', 'logo', 'phone_number', 'address']:
-            setattr(instance, field, validated_data.get(field, getattr(instance, field)))
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
         instance.save()
         return instance
 
-# serializer to handle Tenant login with the username and password
-
+# Enhanced Tenant Login Serializer with better error handling
 class TenantLoginSerializer(serializers.Serializer):
     username = serializers.CharField(
         max_length=150,
@@ -142,7 +152,6 @@ class TenantLoginSerializer(serializers.Serializer):
         data['tenant_profile'] = tenant_profile
         return data
 
-    # method to return the tenant profile
     def get_tenant_profile(self):
         """Return the tenant profile associated with the validated data."""
         tenant_profile = self.validated_data.get('tenant_profile')
@@ -151,8 +160,12 @@ class TenantLoginSerializer(serializers.Serializer):
                 'id': tenant_profile.pk,
                 'business_name': tenant_profile.business_name,
                 'business_email': tenant_profile.business_email,
+                'username': tenant_profile.username,
+                'first_name': tenant_profile.first_name,
+                'last_name': tenant_profile.last_name,
                 'phone_number': tenant_profile.phone_number,
                 'address': tenant_profile.address,
+                'logo': tenant_profile.logo.url if tenant_profile.logo else None,
                 'created_at': tenant_profile.created_at,
                 'updated_at': tenant_profile.updated_at
             }
@@ -161,7 +174,7 @@ class TenantLoginSerializer(serializers.Serializer):
     def get_tenant(self):
         return self.validated_data.get('tenant', None)
 
-# serializer to handle employee role and salary
+# Enhanced Employee Role Salary Serializer
 class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
     ROLE_CHOICES = (
         ('manager', _('Manager')),
@@ -172,11 +185,11 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
     )
 
     salary_map = {
-        'manager': 5000.00,
-        'staff': 3000.00,
-        'cleaner': 2000.00,
-        'security': 2500.00,
-        'receptionist': 3500.00,
+        'manager': Decimal('50000.00'),
+        'staff': Decimal('30000.00'),
+        'cleaner': Decimal('20000.00'),
+        'security': Decimal('25000.00'),
+        'receptionist': Decimal('35000.00'),
     }
 
     description = serializers.CharField(
@@ -208,21 +221,20 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = StaffRole
-        fields = ['role_type', 'description', 'salary']
+        fields = ['id', 'role_type', 'description', 'salary', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'salary', 'created_at', 'updated_at']
 
-        #method to validate the role type and description
-        def validate(self, attrs):
-            role_type = attrs.get('role_type')
-            description = attrs.get('description')
-
-            if not role_type:
-                raise serializers.ValidationError({'role_type': _('Role type is required.')})
-
-            return attrs
+    def validate(self, attrs):
+        """Validate the role type and description."""
+        role_type = attrs.get('role_type')
+        if not role_type:
+            raise serializers.ValidationError({'role_type': _('Role type is required.')})
+        return attrs
 
     def create(self, validated_data):
+        """Create a new staff role with auto-calculated salary."""
         role_type = validated_data.get('role_type')
-        salary = self.salary_map.get(role_type, 0.00)
+        salary = self.salary_map.get(role_type, Decimal('0.00'))
         
         request = self.context.get('request')
         tenant = getattr(request, 'user', None)
@@ -235,8 +247,9 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
         )
 
     def update(self, instance, validated_data):
+        """Update staff role with auto-calculated salary."""
         role_type = validated_data.get('role_type', instance.role_type)
-        description = validated_data.get('description', getattr(instance, 'description', ''))
+        description = validated_data.get('description', instance.description)
         salary = self.salary_map.get(role_type, instance.salary)
 
         instance.role_type = role_type
@@ -245,7 +258,7 @@ class EmployeeRoleSalarySerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
-# Serializer to handle employee creation
+# Enhanced Create Employee Serializer
 class CreateEmployeeSerializer(serializers.ModelSerializer):
     username = serializers.CharField(
         max_length=150,
@@ -268,15 +281,17 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     password = serializers.CharField(
         required=True,
         write_only=True,
+        min_length=8,
         style={'input_type': 'password'},
         error_messages={
             'blank': _('Password cannot be blank.'),
+            'min_length': _('Password must be at least 8 characters long.')
         }
     )
 
     role_id = serializers.PrimaryKeyRelatedField(
         source='role',
-        queryset=StaffRole.objects.all(),  # Show all roles since StaffRole doesn't have tenant field
+        queryset=StaffRole.objects.all(),
         write_only=True,
         error_messages={
             'does_not_exist': _('Role does not exist.'),
@@ -286,7 +301,7 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     
     location_id = serializers.PrimaryKeyRelatedField(
         source='location',
-        queryset=get_location_model().objects.none(),  # Will be set in __init__
+        queryset=get_location_model().objects.none(),
         write_only=True,
         error_messages={
             'does_not_exist': _('Location does not exist.'),
@@ -299,65 +314,65 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Set querysets dynamically based on request context
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             tenant = request.user
             Location = get_location_model()
             
-            # Set the queryset for location_id field - filter by tenant
             self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
-            # StaffRole doesn't have tenant field, so we show all roles
-            self.fields['role_id'].queryset = StaffRole.objects.all()
+            self.fields['role_id'].queryset = StaffRole.objects.filter(tenant=tenant)
         else:
-            # Fallback to empty querysets if no request context
             Location = get_location_model()
             self.fields['location_id'].queryset = Location.objects.none()
             self.fields['role_id'].queryset = StaffRole.objects.none()
 
     def get_role(self, obj):
+        """Get role details."""
         if obj.role:
             return {
+                'id': obj.role.id,
                 'role_type': obj.role.role_type,
-                'salary': obj.role.salary,
+                'salary': str(obj.role.salary),
                 'description': obj.role.description
             }
         return None
 
     def get_location(self, obj):
+        """Get location details."""
         if obj.location:
             return {
                 'id': obj.location.id,
-                'name': obj.location.name
+                'name': obj.location.name,
+                'address': obj.location.address
             }
         return None
 
     class Meta:
         model = Staff
         fields = [
-            'id', 'username', 'email', 'password',
-            'role_id', 'location_id', 'role', 'location'
+            'id', 'username', 'email', 'password', 'first_name', 'last_name',
+            'role_id', 'location_id', 'role', 'location', 'is_active',
+            'created_at', 'updated_at'
         ]
         extra_kwargs = {
             'password': {'write_only': True},
         }
-        read_only_fields = ('tenant', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
         
     def validate_username(self, value):
+        """Validate username uniqueness."""
         if Staff.objects.filter(username=value).exists():
             raise serializers.ValidationError(_('Username already exists.'))
         return value
 
+    def validate_email(self, value):
+        """Validate email uniqueness."""
+        if Staff.objects.filter(email=value).exists():
+            raise serializers.ValidationError(_('Email already exists.'))
+        return value
+
     def validate(self, data):
-        """Custom validation to ensure email and phone number are unique."""
-        password = data.get('password')
-        if not password:
-            raise serializers.ValidationError({'password': _('Password is required.')})
-            
-        email = data.get('email')
-        if Staff.objects.filter(email=email).exists():
-            raise serializers.ValidationError({'email': _('Email already exists.')})
-        
+        """Custom validation."""
         # Check if the location belongs to the current tenant
         location = data.get('location')
         if location:
@@ -367,11 +382,21 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'location_id': _('Location does not belong to the current tenant.')
                 })
+        
+        # Check if role belongs to tenant
+        role = data.get('role')
+        if role:
+            request = self.context.get('request')
+            tenant = getattr(request, 'user', None)
+            if role.tenant != tenant:
+                raise serializers.ValidationError({
+                    'role_id': _('Role does not belong to the current tenant.')
+                })
 
         return data
     
     def create(self, validated_data):
-        """Create a new employee"""
+        """Create a new employee."""
         request = self.context.get('request')
         tenant = getattr(request, 'user', None)
         validated_data['tenant'] = tenant
@@ -379,53 +404,35 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         employee = Staff.objects.create(**validated_data)
         return employee
 
-# serializer to handle car check in
-class CarCheckInItemsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CarCheckIn
-        fields = '__all__'
-        read_only_fields = ('tenant', 'created_at', 'updated_at')
-
-# Task Serializer
+# Enhanced Task Serializer
 class TaskSerializer(serializers.ModelSerializer):
     assigned_to = serializers.CharField(source='assigned_to.username', read_only=True)
     location = serializers.CharField(source='location.name', read_only=True)
     tenant = serializers.CharField(source='tenant.name', read_only=True)
-    booking_made = serializers.CharField(source='booking_made.id', read_only=True)
+    booking_made = serializers.CharField(source='booking_made.booking_number', read_only=True)
     booking_location_service_services = serializers.SerializerMethodField(read_only=True)
-    checkin_items = CarCheckInItemsSerializer(read_only=True, many=True)
     next_possible_status = serializers.SerializerMethodField(read_only=True)
 
     # Write only fields
     assigned_to_id = serializers.PrimaryKeyRelatedField(
         source='assigned_to',
-        queryset=StaffProfile.objects.none(),  # Will be set in __init__
+        queryset=StaffProfile.objects.none(),
         write_only=True,
         required=True
     )
     
     location_id = serializers.PrimaryKeyRelatedField(
         source='location',
-        queryset=get_location_model().objects.none(),  # Will be set in __init__
+        queryset=get_location_model().objects.none(),
         write_only=True,
         required=True
     )
     
     booking_id = serializers.PrimaryKeyRelatedField(
         source='booking_made',
-        queryset=get_booking_model().objects.none(),  # Will be set in __init__
+        queryset=get_booking_model().objects.none(),
         write_only=True,
         required=True
-    )
-    
-    checkin_items_data = CarCheckInItemsSerializer(
-        source='car_checkins',
-        many=True,
-        write_only=True,
-        required=False,
-        error_messages={
-            'blank': _('Check-in items cannot be blank.'),
-        }
     )
     
     def __init__(self, *args, **kwargs):
@@ -434,19 +441,11 @@ class TaskSerializer(serializers.ModelSerializer):
         if request and hasattr(request, 'user'):
             tenant = request.user
             Location = get_location_model()
-            booking = get_booking_model()
+            Booking = get_booking_model()
 
             self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
-            self.fields['booking_id'].queryset = booking.objects.filter(tenant=tenant)
-            # Filter StaffProfile by tenant field
+            self.fields['booking_id'].queryset = Booking.objects.filter(location__tenant=tenant)
             self.fields['assigned_to_id'].queryset = StaffProfile.objects.filter(tenant=tenant)
-        else:
-            # Fallback to empty querysets
-            Location = get_location_model()
-            booking = get_booking_model()
-            self.fields['location_id'].queryset = Location.objects.none()
-            self.fields['booking_id'].queryset = booking.objects.none()
-            self.fields['assigned_to_id'].queryset = StaffProfile.objects.none()
     
     def get_next_possible_status(self, obj):
         """Return the next possible status for a task."""
@@ -454,7 +453,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'pending': ['in_progress', 'completed', 'overdue'],
             'in_progress': ['completed', 'overdue'],
             'completed': [],
-            'overdue': []
+            'overdue': ['completed']
         }
         return status_transitions.get(obj.status, [])
 
@@ -462,18 +461,18 @@ class TaskSerializer(serializers.ModelSerializer):
         """Return the services in the booking location service."""
         if obj.booking_made and obj.booking_made.location_service:
             services = obj.booking_made.location_service.service.all()
-            return [service.name for service in services]
+            return [{'id': service.id, 'name': service.name, 'price': str(service.price)} for service in services]
         return []
 
     class Meta:
         model = Task
         fields = [
-            'id', 'location', 'booking_made', 'description', 'tenant', 'checkin_items_data', 
-            'checkin_items', 'assigned_to', 'status', 'priority', 'due_date', 'assigned_to_id',
-            'location_id', 'booking_id', 'booking_location_service_services', 'next_possible_status',
-            'created_at', 'updated_at'
+            'id', 'location', 'booking_made', 'description', 'tenant',
+            'assigned_to', 'status', 'priority', 'due_date', 'assigned_to_id',
+            'location_id', 'booking_id', 'booking_location_service_services', 
+            'next_possible_status', 'created_at', 'updated_at'
         ]
-        read_only_fields = ('tenant', 'created_at', 'updated_at')
+        read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
 
     def validate(self, data):
         """Validate task creation."""
@@ -491,22 +490,11 @@ class TaskSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({
                     'assigned_to_id': _('You can only assign tasks to your own staff.')
                 })
-        
-        # Check if task with this booking already exists
-        Task = self.Meta.model
-        if Task.objects.filter(booking_made=booking).exists():
-            raise serializers.ValidationError({
-                'booking_made': _('Task with this booking already exists.')
-            })
 
         return data
 
     def create(self, validated_data):
         """Create a new task instance."""
-        booking = validated_data.pop('booking_made', None)
-        checkin_items_data = validated_data.pop('car_checkins', [])
-        
-        # Set default status to 'pending' when creating a new task
         if 'status' not in validated_data:
             validated_data['status'] = 'pending'
             
@@ -515,26 +503,72 @@ class TaskSerializer(serializers.ModelSerializer):
         validated_data['tenant'] = tenant
         
         task = Task.objects.create(**validated_data)
-        if booking:
-            task.booking_made = booking
-            task.save()
-            
-        # Create CarCheckIn instances
-        for item_data in checkin_items_data:
-            CarCheckIn.objects.create(task=task, tenant=tenant, **item_data)
-
         return task
 
-# Dashboard Statistics Serializer
+# Enhanced Dashboard Statistics Serializer
 class TenantDashboardSerializer(serializers.Serializer):
+    # Staff metrics
     total_staff = serializers.IntegerField(read_only=True)
+    active_staff = serializers.SerializerMethodField(read_only=True)
+    
+    # Location metrics
     total_locations = serializers.IntegerField(read_only=True)
+    
+    # Task metrics
     total_tasks = serializers.IntegerField(read_only=True)
     pending_tasks = serializers.IntegerField(read_only=True)
     in_progress_tasks = serializers.IntegerField(read_only=True)
     completed_tasks = serializers.IntegerField(read_only=True)
     overdue_tasks = serializers.IntegerField(read_only=True)
+    
+    # Booking metrics
     total_bookings = serializers.IntegerField(read_only=True)
     confirmed_bookings = serializers.IntegerField(read_only=True)
     completed_bookings = serializers.IntegerField(read_only=True)
+    
+    # Financial metrics
     revenue_this_month = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    revenue_today = serializers.SerializerMethodField(read_only=True)
+    
+    # Performance metrics
+    task_completion_rate = serializers.SerializerMethodField(read_only=True)
+    booking_success_rate = serializers.SerializerMethodField(read_only=True)
+
+    def get_active_staff(self, data):
+        """Calculate active staff count."""
+        return data.get('total_staff', 0)  # Assuming all staff are active
+
+    def get_revenue_today(self, data):
+        """Calculate today's revenue."""
+        from datetime import date
+        from django.db.models import Sum
+        
+        Booking = get_booking_model()
+        today_revenue = Booking.objects.filter(
+            location__tenant=self.context['tenant'],
+            status='completed',
+            created_at__date=date.today()
+        ).aggregate(
+            total=Sum('total_amount')
+        )['total'] or Decimal('0.00')
+        
+        return today_revenue
+
+    def get_task_completion_rate(self, data):
+        """Calculate task completion rate."""
+        total = data.get('total_tasks', 0)
+        completed = data.get('completed_tasks', 0)
+        return round((completed / total * 100), 2) if total > 0 else 0
+
+    def get_booking_success_rate(self, data):
+        """Calculate booking success rate."""
+        total = data.get('total_bookings', 0)
+        completed = data.get('completed_bookings', 0)
+        return round((completed / total * 100), 2) if total > 0 else 0
+
+# Car Check-in Items Serializer
+class CarCheckInItemsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CarCheckIn
+        fields = '__all__'
+        read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
