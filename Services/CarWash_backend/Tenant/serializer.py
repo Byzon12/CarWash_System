@@ -399,6 +399,60 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         employee = Staff.objects.create(**validated_data)
         return employee
 
+# Car Check-in Items Serializer
+class CarCheckInItemsSerializer(serializers.ModelSerializer):
+    #nested serializer for car check-in items
+    task_description = serializers.CharField(source='task.description', read_only=True)
+    car_information = serializers.SerializerMethodField(read_only=True)
+    checkin_status = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = CarCheckIn
+        fields = '__all__'
+        read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
+
+    def get_car_information(self, obj):
+        """Return car information."""
+        if obj.car:
+            return {
+                'id': obj.car.id,
+                'make': obj.car.make,
+                'model': obj.car.model,
+                'year': obj.car.year
+            }
+        return None
+    def get_checkin_status(self, obj):
+        """get check-in status./ checkout status"""
+        if obj.checkout_time:
+            return 'checked_out'
+        return 'checked_in'
+
+
+    def validate_car_plate(self, value):
+        """Validate car plate format"""
+        if value and len(value) < 4:
+            raise serializers.ValidationError(_('Car plate must be at least 4 characters long.'))
+        return value.upper() if  value else value
+    
+    def validate(self, data):
+        """Custom validation for car check-in items."""
+        # Check if the car already exists in the system
+        car_plate = data.get('car_plate')
+        if car_plate and CarCheckIn.objects.filter(car_plate=car_plate).exists():
+            raise serializers.ValidationError({
+                'car_plate': _('A car with this plate number already exists.')
+            })
+        
+        # Check if the task is valid
+        task = data.get('task')
+        if not task:
+            raise serializers.ValidationError({
+                'task': _('Task is required for car check-in.')
+            })
+        
+        return data
+   
+
 # Enhanced Task Serializer/ task creation for tenant
 class TaskSerializer(serializers.ModelSerializer):
     """
@@ -589,9 +643,3 @@ class TenantDashboardSerializer(serializers.Serializer):
         completed = data.get('completed_bookings', 0)
         return round((completed / total * 100), 2) if total > 0 else 0
 
-# Car Check-in Items Serializer
-class CarCheckInItemsSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CarCheckIn
-        fields = '__all__'
-        read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
