@@ -5,7 +5,8 @@ from .views import (
     TenantProfileView, TenantLoginView, TenantLogoutView, TenantProfileDetailsView,
     CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView,
     DeactivateEmployeeView, ActivateEmployeeView, TaskCreateView, TaskListView,
-    TaskDetailView, TaskUpdateStatusView, TenantDashboardStatsView, StaffTaskStatisticsView
+    TaskDetailView, TaskUpdateStatusView, TenantDashboardStatsView, StaffTaskStatisticsView,
+    ListEmployeeRolesView
 )
 
 urlpatterns = [
@@ -18,19 +19,23 @@ urlpatterns = [
     path('profile/details/', TenantProfileDetailsView.as_view(), name='tenant-profile-details-view'),
 
     # Employee management
-    path('employees/list/', ListEmployeeView.as_view(), name='list-employee-view'),
-    path('employees/', CreateEmployeeView.as_view(), name='create-employee-view'),
-    path('employees/update/<int:pk>/', CreateEmployeeSalaryView.as_view(), name='update-employee-salary-view'),# Update employee salary
+    path('employees/list/', ListEmployeeView.as_view(), name='list-employee-view'),#list all employees for the tenant
+    path('employees/create/', CreateEmployeeView.as_view(), name='create-employee-view'),# Create a new employee
+    path('employees/update/<int:pk>/', CreateEmployeeSalaryView.as_view(), name='update-employee-salary-view'),# uUpdate employee role and salary
     path('employees/delete/<int:pk>/', DeleteEmployeeView.as_view(), name='delete-employee-view'),
     path('employees/deactivate/<int:pk>/', DeactivateEmployeeView.as_view(), name='deactivate-employee-view'),
     path('employees/activate/<int:pk>/', ActivateEmployeeView.as_view(), name='activate-employee-view'),
-    
+
+    # Employee role management
+    path('roles/create/', CreateEmployeeSalaryView.as_view(), name='create-employee-role'),
+    path('roles/', ListEmployeeRolesView.as_view(), name='list-employee-roles'),
+
     # Task management
     path('tasks/create/', TaskCreateView.as_view(), name='create-task-view'),
     path('tasks/', TaskListView.as_view(), name='list-tasks-view'),
     path('tasks/<int:pk>/', TaskDetailView.as_view(), name='task-detail-view'),
-    path('tasks/<int:pk>/status/', TaskUpdateStatusView.as_view(), name='update-task-status-view'),
-    
+    path('tasks/<int:pk>/status/', TaskUpdateStatusView.as_view(), name='update-task-status-view'),# Update task status patch method
+
     # Dashboard and statistics
     path('dashboard/stats/', TenantDashboardStatsView.as_view(), name='tenant-dashboard-stats'),
     path('staff/statistics/', StaffTaskStatisticsView.as_view(), name='staff-task-statistics'),

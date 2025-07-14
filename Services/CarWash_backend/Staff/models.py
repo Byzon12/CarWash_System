@@ -1,3 +1,4 @@
+from operator import is_
 from venv import create
 from django.db import models
 from django.contrib.auth.hashers import make_password
@@ -17,6 +18,7 @@ class Staff(models.Model):
     email = models.EmailField(max_length=254, unique=True)
     username = models.CharField(max_length=150, unique=True, blank=True, null=True)
     password = models.CharField(max_length=128, blank=False, null=True)
+    is_active = models.BooleanField(default=True, help_text="Indicates if the staff member is active.")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -77,15 +79,31 @@ class StaffRole(models.Model):
     
     """Model representing different roles an employee can have within a tenant."""
     id = models.AutoField(primary_key=True)
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='staff_roles', null=True, blank=True)
+    location= models.ForeignKey('Location.Location', on_delete=models.SET_NULL, related_name='staff_role_location', null=True, blank=True)
     role_type = models.CharField(max_length=50, choices=ROLE_CHOICES, default='staff')
     description = models.TextField(blank=True, null=True)
     salary = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    created_at = models.DateField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateField(auto_now=True, null=True, blank=True)
   
     def save(self, *args, **kwargs):
         """Override save method to set the salary based on role type."""
         if not self.salary:
             self.salary = self.SALARY_MAP.get(self.role_type, 0.00)
         super().save(*args, **kwargs)
+    
+    #clean method to ensure role type is valid and location belong to the tenant
+    def clean(self):
+        """
+        Ensure that the role type is valid and the location belongs to the tenant.
+        """
+        if self.role_type not in dict(self.ROLE_CHOICES):
+            raise ValidationError(f"Invalid role type: {self.role_type}. Must be one of {', '.join(dict(self.ROLE_CHOICES).keys())}.")
+        
+        if self.location and self.tenant:
+            if self.location.tenant != self.tenant:
+                raise ValidationError("Location must belong to the same tenant as the staff role.")
 
     def __str__(self):
         return f"{self.role_type} "
@@ -111,6 +129,7 @@ class StaffProfile(models.Model):
     role = models.ForeignKey(StaffRole, on_delete=models.SET_NULL, null=True, blank=False)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     email = models.EmailField(max_length=254, blank=True, null=True)
+    is_active = models.BooleanField(default=True, help_text="Indicates if the staff profile is active.")
     
     #property dicorator to authenitcate the staff profile
      # Make it behave like an authenticated user

@@ -85,7 +85,7 @@ class TenantProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         queryset = self.get_queryset()
-        obj = queryset.first()
+        obj = queryset.first() # this assumes one profile per tenant
         if not obj:
             raise ValidationError(_('Tenant profile does not exist.'))
         return obj
@@ -145,9 +145,42 @@ class CreateEmployeeSalaryView(generics.CreateAPIView):
     def perform_create(self, serializer):
         tenant = self.request.user
         Location = get_location_model()
+        
         location_id = self.request.data.get('location')
-        location = Location.objects.get(pk=location_id, tenant=tenant)
+        location = None
+        
+        if location_id:
+            try:
+                location = Location.objects.get(pk=location_id, tenant=tenant)
+            except Location.DoesNotExist:
+                raise serializers.ValidationError(_('Location does not exist or does not belong to this tenant.'))
+        
         serializer.save(tenant=tenant, location=location)
+
+    def create(self, request, *args, **kwargs):
+        """Enhanced create method with better error handling."""
+        serializer = self.get_serializer(data=request.data)
+        
+        if serializer.is_valid():
+            try:
+                self.perform_create(serializer)
+                return Response({
+                    'success': True,
+                    'message': 'Employee role created successfully',
+                    'role': serializer.data
+                }, status=status.HTTP_201_CREATED)
+            except ValidationError as e:
+                return Response({
+                    'success': False,
+                    'message': 'Creation failed',
+                    'errors': {'detail': str(e)}
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response({
+            'success': False,
+            'message': 'Validation failed',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 class DeleteEmployeeView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
@@ -171,7 +204,8 @@ class DeleteEmployeeView(generics.DestroyAPIView):
             'detail': _('Employee deleted successfully.')
         }, status=status.HTTP_204_NO_CONTENT)
 
-class DeactivateEmployeeView(generics.UpdateAPIView):
+class DeactivateEmployeeView(generics.DestroyAPIView):
+
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
@@ -181,8 +215,8 @@ class DeactivateEmployeeView(generics.UpdateAPIView):
             return StaffProfile.objects.get(pk=pk, tenant=tenant)
         except StaffProfile.DoesNotExist:
             return None
-
-    def patch(self, request, *args, **kwargs):
+        
+    def delete(self, request, *args, **kwargs):
         employee = self.get_object()
         if not employee:
             return Response({
@@ -192,9 +226,10 @@ class DeactivateEmployeeView(generics.UpdateAPIView):
         employee.save()
         return Response({
             'detail': _('Employee deactivated successfully.')
-        }, status=status.HTTP_200_OK)
+        }, status=status.HTTP_204_NO_CONTENT)
 
-class ActivateEmployeeView(generics.UpdateAPIView):
+
+class ActivateEmployeeView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
@@ -205,7 +240,7 @@ class ActivateEmployeeView(generics.UpdateAPIView):
         except StaffProfile.DoesNotExist:
             return None
 
-    def patch(self, request, *args, **kwargs):
+    def delete(self, request, *args, **kwargs):
         employee = self.get_object()
         if not employee:
             return Response({
@@ -342,8 +377,8 @@ class TenantDashboardStatsView(generics.GenericAPIView):
             'completed_bookings': completed_bookings,
             'revenue_this_month': revenue_this_month
         }
-        
-        serializer = self.get_serializer(data)
+
+        serializer = self.get_serializer(data, context={'tenant': tenant, 'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 class StaffTaskStatisticsView(generics.GenericAPIView):
@@ -366,3 +401,29 @@ class StaffTaskStatisticsView(generics.GenericAPIView):
         )
         
         return Response(list(staff_stats), status=status.HTTP_200_OK)
+
+class ListEmployeeRolesView(generics.ListAPIView):
+    """List all employee roles for a tenant."""
+    serializer_class = EmployeeRoleSalarySerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        tenant = self.request.user
+        queryset = StaffRole.objects.filter(tenant=tenant)
+        
+        # Filter by location if provided
+        location_id = self.request.query_params.get('location')
+        if location_id:
+            queryset = queryset.filter(location_id=location_id)
+            
+        return queryset.order_by('role_type')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return Response({
+            'success': True,
+            'count': queryset.count(),
+            'roles': serializer.data
+        })

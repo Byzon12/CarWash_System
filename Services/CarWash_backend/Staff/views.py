@@ -34,7 +34,7 @@ class StaffLoginView(generics.GenericAPIView):
         return Response({
             'token': str(refresh),
             'access': str(refresh.access_token),
-            'staff': serializer.get_staff_profile()
+           # 'staff': serializer.get_staff_profile()
             
         }, status=200)
 # logout view

@@ -291,7 +291,7 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
 
     role_id = serializers.PrimaryKeyRelatedField(
         source='role',
-        queryset=StaffRole.objects.all(),
+        queryset=StaffRole.objects.all(),  # StaffRole doesn't have tenant field
         write_only=True,
         error_messages={
             'does_not_exist': _('Role does not exist.'),
@@ -319,8 +319,10 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
             tenant = request.user
             Location = get_location_model()
             
+            # Filter locations by tenant
             self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
-            self.fields['role_id'].queryset = StaffRole.objects.filter(tenant=tenant)
+            # Filter roles by tenant/location
+            self.fields['role_id'].queryset = StaffRole.objects.filter(tenant=tenant, location__in=self.fields['location_id'].queryset)
         else:
             Location = get_location_model()
             self.fields['location_id'].queryset = Location.objects.none()
@@ -350,7 +352,7 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Staff
         fields = [
-            'id', 'username', 'email', 'password', 'first_name', 'last_name',
+            'id', 'username', 'email', 'password',
             'role_id', 'location_id', 'role', 'location', 'is_active',
             'created_at', 'updated_at'
         ]
@@ -383,15 +385,8 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
                     'location_id': _('Location does not belong to the current tenant.')
                 })
         
-        # Check if role belongs to tenant
-        role = data.get('role')
-        if role:
-            request = self.context.get('request')
-            tenant = getattr(request, 'user', None)
-            if role.tenant != tenant:
-                raise serializers.ValidationError({
-                    'role_id': _('Role does not belong to the current tenant.')
-                })
+        # Note: Role validation removed since StaffRole doesn't have tenant field
+        # Roles are global/shared across all tenants
 
         return data
     
@@ -404,8 +399,14 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         employee = Staff.objects.create(**validated_data)
         return employee
 
-# Enhanced Task Serializer
+# Enhanced Task Serializer/ task creation for tenant
 class TaskSerializer(serializers.ModelSerializer):
+    """
+    this serializer is used to create and update tasks for the tenant.
+    It includes fields for task details, location, booking, and assigned staff.
+    task are assigned based on the tenant's location and booking services.
+    It also includes methods to get next possible status and booking location service services.
+    """
     assigned_to = serializers.CharField(source='assigned_to.username', read_only=True)
     location = serializers.CharField(source='location.name', read_only=True)
     tenant = serializers.CharField(source='tenant.name', read_only=True)
@@ -467,7 +468,7 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = [
-            'id', 'location', 'booking_made', 'description', 'tenant',
+             'location', 'booking_made', 'description', 'tenant',
             'assigned_to', 'status', 'priority', 'due_date', 'assigned_to_id',
             'location_id', 'booking_id', 'booking_location_service_services', 
             'next_possible_status', 'created_at', 'updated_at'
@@ -476,10 +477,19 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """Validate task creation."""
+        
+        #check if the task with the same booking_number already exists
+        
         booking = data.get('booking_made')
         if booking and booking.status not in ['confirmed', 'completed']:
             raise serializers.ValidationError({
                 'booking_made': _('Booking must be confirmed or completed to assign a task.')
+            })
+            
+             #check if the task with the same booking_number already exists
+        if Task.objects.filter(booking_made=booking).exists():
+            raise serializers.ValidationError({
+                'booking_made': _('A task with this booking number {} already exists.').format(booking.booking_number)
             })
         
         assigned_to = data.get('assigned_to')
@@ -495,8 +505,13 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Create a new task instance."""
+        #setting default status to 'pending' if not provided
         if 'status' not in validated_data:
             validated_data['status'] = 'pending'
+            
+        #setting default priority to 'medium' if not provided
+        if 'priority' not in validated_data:
+            validated_data['priority'] = 'medium'
             
         request = self.context.get('request')
         tenant = getattr(request, 'user', None)
@@ -536,12 +551,20 @@ class TenantDashboardSerializer(serializers.Serializer):
 
     def get_active_staff(self, data):
         """Calculate active staff count."""
-        return data.get('total_staff', 0)  # Assuming all staff are active
+        return data.get('total_staff') - data.get('inactive_staff', 0)
 
     def get_revenue_today(self, data):
         """Calculate today's revenue."""
         from datetime import date
         from django.db.models import Sum
+        
+        #get tenant from context
+        tenant = self.context.get('tenant')
+        if not tenant:
+            return Decimal('0.00')
+        
+        
+        # Getting the booking model dynamically to avoid circular imports
         
         Booking = get_booking_model()
         today_revenue = Booking.objects.filter(
