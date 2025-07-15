@@ -6,7 +6,7 @@ from .views import (
     CreateEmployeeView, ListEmployeeView, CreateEmployeeSalaryView, DeleteEmployeeView,
     DeactivateEmployeeView, ActivateEmployeeView, TaskCreateView, TaskListView,
     TaskDetailView, TaskUpdateStatusView, TenantDashboardStatsView, StaffTaskStatisticsView,
-    ListEmployeeRolesView
+    ListEmployeeRolesView, TaskSummaryView, CarCheckOutItemsView, CarCheckInItemsView
 )
 
 urlpatterns = [
@@ -35,6 +35,17 @@ urlpatterns = [
     path('tasks/', TaskListView.as_view(), name='list-tasks-view'),
     path('tasks/<int:pk>/', TaskDetailView.as_view(), name='task-detail-view'),
     path('tasks/<int:pk>/status/', TaskUpdateStatusView.as_view(), name='update-task-status-view'),# Update task status patch method
+
+    # Enhanced task management with check-in items
+    path('tasks/create/', TaskCreateView.as_view(), name='create-task-view'),
+    path('tasks/', TaskListView.as_view(), name='list-tasks-view'),
+    path('tasks/<int:pk>/', TaskDetailView.as_view(), name='task-detail-view'),
+    path('tasks/<int:pk>/status/', TaskUpdateStatusView.as_view(), name='update-task-status-view'),
+    
+    # Car check-in/out management
+    path('tasks/<int:task_id>/checkins/', CarCheckInItemsView.as_view(), name='task-checkin-items'),
+    path('tasks/<int:task_id>/summary/', TaskSummaryView.as_view(), name='task-checkin-summary'),
+    path('checkins/<int:pk>/checkout/', CarCheckOutItemsView.as_view(), name='car-checkout'),
 
     # Dashboard and statistics
     path('dashboard/stats/', TenantDashboardStatsView.as_view(), name='tenant-dashboard-stats'),

@@ -15,10 +15,11 @@ from django.db import models
 from decimal import Decimal
 from datetime import datetime, timedelta
 
-from .models import Tenant, TenantProfile, Task
+from .models import CarCheckIn, Tenant, TenantProfile, Task
 from .serializer import (
     TenantProfileSerializer, TenantLoginSerializer, EmployeeRoleSalarySerializer, 
-    CreateEmployeeSerializer, TaskSerializer, TenantDashboardSerializer
+    CreateEmployeeSerializer, TaskSerializer, TenantDashboardSerializer,
+    CarCheckInItemsSerializer, CarCheckOutItemsSerializer
 )
 from .email import send_tenant_profile_update_email
 from Staff.models import StaffProfile, StaffRole
@@ -31,7 +32,9 @@ def get_location_model():
 def get_booking_model():
     from booking.models import booking
     return booking
-
+def get_car_checkin_model():
+    from Tenant.models import CarCheckIn
+    return CarCheckIn
 # API view to handle tenant login
 class TenantLoginView(generics.GenericAPIView):
     serializer_class = TenantLoginSerializer
@@ -427,3 +430,82 @@ class ListEmployeeRolesView(generics.ListAPIView):
             'count': queryset.count(),
             'roles': serializer.data
         })
+        
+        
+# view class to handle car check-in items
+class CarCheckInItemsView(generics.ListAPIView):
+    """List car check-in items for a tenant."""
+    serializer_class = CarCheckInItemsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        task_id = self.kwargs.get('task_id')
+        tenant = self.request.user
+        return get_car_checkin_model().objects.filter(tenant=tenant, task_id=task_id).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        tenant = self.request.user
+        task_id = self.kwargs.get('task_id')
+        try:
+            task = Task.objects.get(tenant=tenant, task_id=task_id)
+        except Task.DoesNotExist:
+            task = None
+
+        if not task:
+            raise serializers.ValidationError(_('Task does not exist or does not belong to this tenant.'))
+        
+        serializer.save(tenant=tenant, task=task)
+        
+class CarCheckOutItemsView(generics.ListAPIView):
+    """List car check-out items for a tenant."""
+    serializer_class = CarCheckOutItemsSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        task_id = self.kwargs.get('task_id')
+        tenant = self.request.user
+        return get_car_checkin_model().objects.filter(tenant=tenant, task_id=task_id).order_by('-created_at')
+    
+    def perform_create(self, serializer):
+        tenant = self.request.user
+        task_id = self.kwargs.get('task_id')
+        try:
+            task = Task.objects.get(tenant=tenant, task_id=task_id)
+        except Task.DoesNotExist:
+            task = None
+
+        if not task:
+            raise serializers.ValidationError(_('Task does not exist or does not belong to this tenant.'))
+        
+        serializer.save(tenant=tenant, task=task)
+        return Response({
+            'success': True,
+            'message': _('Car check-out items created successfully.'),
+            'data': serializer.data
+        }, status=status.HTTP_201_CREATED)
+        
+#class view to handle task summarry
+
+class TaskSummaryView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+     
+    def get(self, request, *args, **kwargs):
+        tenant = request.user
+        task_id = self.kwargs.get('task_id')
+        
+        try:
+            task = Task.objects.get(tenant=tenant, task_id=task_id)
+        except Task.DoesNotExist:
+            return Response({
+                'detail': _('Task not found.')
+            }, status=status.HTTP_404_NOT_FOUND)
+        car_checkin_items = get_car_checkin_model().filter(task=task, tenant=tenant)
+        car_checkout_items = get_car_checkin_model().objects.filter(task=task, tenant=tenant)
+
+        summary = {
+            'task_id': task_id,
+            'car_checkin_count': car_checkin_items.count(),
+            'car_checkout_count': car_checkout_items.count(),
+            'itemized_checkin': CarCheckInItemsSerializer(car_checkin_items, many=True).data,
+        }
+        return Response(summary, status=status.HTTP_200_OK)

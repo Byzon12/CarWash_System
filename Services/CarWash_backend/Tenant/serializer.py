@@ -1,5 +1,6 @@
 from ctypes import FormatError
 from email import message
+from functools import total_ordering
 from os import read, write
 import re
 from tabnanny import check
@@ -408,7 +409,7 @@ class CarCheckInItemsSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CarCheckIn
-        fields = '__all__'
+        fields = ['task', 'car_plate_number', 'car_model', 'checkin_items', 'checkout_items']
         read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
 
     def get_car_information(self, obj):
@@ -436,19 +437,25 @@ class CarCheckInItemsSerializer(serializers.ModelSerializer):
     
     def validate(self, data):
         """Custom validation for car check-in items."""
-        # Check if the car already exists in the system
-        car_plate = data.get('car_plate')
-        if car_plate and CarCheckIn.objects.filter(car_plate=car_plate).exists():
+        checkin_item = data.get('checkin_item')
+        #check if the checkin items are provided
+        if not checkin_item or not checkin_item.get('car_plate'):
             raise serializers.ValidationError({
-                'car_plate': _('A car with this plate number already exists.')
+                'checkin_item': _('Car plate is required for check-in.')
             })
-        
+
         # Check if the task is valid
         task = data.get('task')
         if not task:
             raise serializers.ValidationError({
                 'task': _('Task is required for car check-in.')
             })
+        #check if the checkout time is not provided when creating a new check-in
+        if 'checkout_time' in data and data['checkout_time'] is not None:
+            raise serializers.ValidationError({
+                'checkout_time': _('Checkout time should not be provided when creating a new check-in.')
+            })
+        
         
         return data
    
@@ -467,6 +474,11 @@ class TaskSerializer(serializers.ModelSerializer):
     booking_made = serializers.CharField(source='booking_made.booking_number', read_only=True)
     booking_location_service_services = serializers.SerializerMethodField(read_only=True)
     next_possible_status = serializers.SerializerMethodField(read_only=True)
+    
+    # Read only fields for car_check-in items for display
+    car_check_in_items = CarCheckInItemsSerializer(many=True, read_only=True)
+    total_check_in_items = serializers.IntegerField(source='car_check_in_items.count', read_only=True)
+    
 
     # Write only fields
     assigned_to_id = serializers.PrimaryKeyRelatedField(
@@ -488,6 +500,18 @@ class TaskSerializer(serializers.ModelSerializer):
         queryset=get_booking_model().objects.none(),
         write_only=True,
         required=True
+    )
+    
+    #write only field for car check-in items
+    car_checkin_data=CarCheckInItemsSerializer(
+        many=True,
+        write_only=True,
+        required=False,
+        allow_empty=True,
+        error_messages={
+            'required': _('Car check-in items are required.'),
+            'empty': _('At least one car check-in item is required.')
+        }
     )
     
     def __init__(self, *args, **kwargs):
@@ -522,10 +546,10 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = [
-             'location', 'booking_made', 'description', 'tenant',
+             'location', 'booking_made', 'description', 'tenant', 'car_check_in_items','total_check_in_items','car_checkin_data',
             'assigned_to', 'status', 'priority', 'due_date', 'assigned_to_id',
             'location_id', 'booking_id', 'booking_location_service_services', 
-            'next_possible_status', 'created_at', 'updated_at'
+            'next_possible_status', 'created_at', 'updated_at',
         ]
         read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
 
@@ -559,6 +583,8 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         """Create a new task instance."""
+        
+        checkin_items_data = validated_data.pop('car_checkin_data', [])
         #setting default status to 'pending' if not provided
         if 'status' not in validated_data:
             validated_data['status'] = 'pending'
@@ -573,6 +599,68 @@ class TaskSerializer(serializers.ModelSerializer):
         
         task = Task.objects.create(**validated_data)
         return task
+        
+    def update(self, instance, validated_data):
+        """Update an existing task instance."""
+        checkin_items_data = validated_data.pop('car_checkin_data', [])
+        
+        # Update task fields
+        for field in ['description', 'status', 'priority', 'due_date']:
+            if field in validated_data:
+                setattr(instance, field, validated_data[field])
+        
+        # Update assigned_to and location if provided
+        if 'assigned_to_id' in validated_data:
+            instance.assigned_to = validated_data['assigned_to_id']
+        if 'location_id' in validated_data:
+            instance.location = validated_data['location_id']
+        if 'booking_id' in validated_data:
+            instance.booking_made = validated_data['booking_id']
+        
+        instance.save()
+        
+        # Handle car check-in items
+        if checkin_items_data:
+            instance.car_check_in_items.all().delete()
+            for item_data in checkin_items_data:
+                item_data['task'] = instance
+                CarCheckIn.objects.create(**item_data)
+        else:
+            # If no check-in items provided, ensure existing ones are cleared
+            instance.car_check_in_items.all().delete()
+        return instance
+#serializer to handle car checkout items
+class CarCheckOutItemsSerializer(serializers.ModelSerializer):
+    """Serializer for car check-out items."""
+   
+
+    class Meta:
+        model = CarCheckIn
+        fields = '__all__'
+        read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
+        
+    def validate(self, data):
+        # validate the check out data
+        checkin_item = data.get('checkin_item')
+        if not checkin_item:
+            raise serializers.ValidationError({
+                'checkin_item': _('Car plate is required for check-out.')
+            })
+
+        # check if the item has been checked out
+        if self.instance and self.instance.checkout_time:
+            raise serializers.ValidationError({
+                'checkout_time': _('This item has already been checked out.')
+            })
+        return data
+    def update(self, instance, validated_data):
+        """Update an existing car check-in item to mark it as checked out."""
+        from django.utils import timezone
+
+        validated_data['checkout_time'] = timezone.now()
+
+        return super().update(instance, validated_data)
+    
 
 # Enhanced Dashboard Statistics Serializer
 class TenantDashboardSerializer(serializers.Serializer):
