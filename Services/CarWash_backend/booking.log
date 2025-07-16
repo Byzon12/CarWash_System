@@ -9,3 +9,7 @@ M-Pesa payment initiated for booking BK202507099491
 Successfully obtained M-Pesa access token
 M-Pesa STK Push initiated for BK202507099491: {'MerchantRequestID': '2125-44ce-973c-4255e836d09145459', 'CheckoutRequestID': 'ws_CO_10072025124210851794714584', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
 M-Pesa payment initiated for booking BK202507099491
+Booking created: BK202507165742 by admin16
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507165742: {'MerchantRequestID': '435b-4a8c-8d6e-843c3fd0995240716', 'CheckoutRequestID': 'ws_CO_16072025120834008758736504', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507165742

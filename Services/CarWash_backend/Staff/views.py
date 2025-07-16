@@ -134,7 +134,7 @@ class StaffTaskListView(generics.ListAPIView):
         Return the list of tasks assigned to the authenticated staff member.
         The queryset is filtered by the tenant and location of the staff member.
         """
-        staff_user = self.request.user # assuming the user is a staff member
+        staff_user = self.request.user # user is staff member
         
         try:
             staff_profile = StaffProfile.objects.get(staff=staff_user)

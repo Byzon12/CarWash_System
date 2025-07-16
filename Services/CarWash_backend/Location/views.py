@@ -195,27 +195,33 @@ class LocationServiceCreateView(generics.CreateAPIView):
     API view to create a new location service package for a specified location by logged in tenant.
     """
     
-    permission_classes = [IsAuthenticated]  # Allow any user to create a location service package
+    permission_classes = [IsAuthenticated]
     serializer_class = LocationServiceSerializer
     
-     
-    #perform create method to handle the creation of a new location service package base on spesified location for tenant with more than location
     def perform_create(self, serializer):
         """Handle the creation of a new location service package."""
-        tenant = self.request.user  # assuming the user is a tenant
-        location =Location.objects.filter(tenant=tenant).first()  # Get the first location for the tenant
-        if not location:
-            raise serializers.ValidationError(_("No location found for this tenant. Please create a location first."))
-        serializer.is_valid(raise_exception=True)
-        serializer.save(location=location)  # Save the location service package with the specified location
-    
+        
+        serializer.save()
+
     def create(self, request, *args, **kwargs):
-        """Handle the creation of a new location service package."""
+        """Handle the creation of a new location service package with enhanced response."""
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        headers = self.get_success_headers(serializer.data)
-        return Response(serializer.data, status=201, headers=headers)
+        
+        if serializer.is_valid():
+            self.perform_create(serializer)
+            headers = self.get_success_headers(serializer.data)
+            
+            return Response({
+                'success': True,
+                'message': 'Location service package created successfully',
+                'data': serializer.data
+            }, status=201, headers=headers)
+        
+        return Response({
+            'success': False,
+            'message': 'Validation failed',
+            'errors': serializer.errors
+        }, status=400)
 
 #class to handle the deletion of a location service package
 class LocationServiceDeleteView(generics.DestroyAPIView):

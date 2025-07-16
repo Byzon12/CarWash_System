@@ -257,16 +257,33 @@ class ActivateEmployeeView(generics.DestroyAPIView):
 
 # Task management views
 class TaskCreateView(generics.CreateAPIView):
+    """Enhanced Task creation view with automatic check-in items creation."""
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
     
-    def get_queryset(self):
-        tenant = self.request.user
-        return Task.objects.filter(tenant=tenant)
-
-    def perform_create(self, serializer):
-        tenant = self.request.user
-        serializer.save(tenant=tenant)
+    def create(self, request, *args, **kwargs):
+        """Create task with check-in items in a single request."""
+        serializer = self.get_serializer(data=request.data)
+        
+        if serializer.is_valid():
+            task = serializer.save()
+            
+            # Refresh task from database to get related check-in items
+            task.refresh_from_db()
+            response_serializer = self.get_serializer(task)
+            
+            return Response({
+                'success': True,
+                'message': 'Task created successfully with check-in items',
+                'task': response_serializer.data,
+                'checkin_items_count': task.car_checkins.count()
+            }, status=status.HTTP_201_CREATED)
+        
+        return Response({
+            'success': False,
+            'message': 'Task creation failed',
+            'errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
 class TaskListView(generics.ListAPIView):
     serializer_class = TaskSerializer

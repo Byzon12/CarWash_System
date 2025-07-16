@@ -1,7 +1,5 @@
-
-
 from importlib.util import source_from_cache
-from os import read
+from os import read, write
 import re
 from rest_framework import serializers
 from django.utils.translation import gettext_lazy as _
@@ -13,7 +11,7 @@ from Location.models import Location, Service, LocationService
 #serializer to handle location creation based on tenant
 class LocationSerializer(serializers.ModelSerializer):
     """
-    Serializer for creating a new location.
+    Serializer for creating a new location. with flutter mobile support
     """
     name = serializers.CharField(max_length=255, required=True, help_text=_("Name of the location"))
     address = serializers.CharField(max_length=255, required=True, help_text=_("Address of the location"))
@@ -179,13 +177,20 @@ class LocationServiceSerializer(serializers.ModelSerializer):
         many=True,
         help_text=_("List of services offered at the location")
     )
-    
-    service_details= ServiceSerializer(
+    location_id = serializers.PrimaryKeyRelatedField(
+        source='location',  # This is the key fix - map to the actual location field
+        queryset=Location.objects.all(),
+        help_text=_("Location where the service package is offered"),
+        write_only=True,
+        required=True
+    )
+
+    service_details = ServiceSerializer(
         source='service',
         many=True,
         read_only=True
     )
-    name= serializers.CharField(max_length=255, required=True, help_text=_("Name of the service package"))
+    name = serializers.CharField(max_length=255, required=True, help_text=_("Name of the service package"))
     duration = serializers.DurationField(help_text=_("Duration of the service package in minutes"))
     description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service package"))
     
@@ -193,8 +198,11 @@ class LocationServiceSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LocationService
-        fields = ['id',"location_name",'service', "name", "duration", "description", "price", 'service_names', 'service_details']
-        read_only_fields = ["id",'created_at', "updated_at", "tenant", "location"]
+        fields = [
+            'id', 'location_name', 'location_id', 'service', 'name', 
+            'duration', 'description', 'price', 'service_names', 'service_details'
+        ]
+        read_only_fields = ["id", 'created_at', "updated_at"]
         
     #override the __init__ method to set query set for the service field only to the services that belong to the tenant
     def __init__(self, *args, **kwargs):
@@ -204,54 +212,106 @@ class LocationServiceSerializer(serializers.ModelSerializer):
             # Get the tenant from the authenticated user
             tenant = request.user
             self.fields['service'].queryset = Service.objects.filter(tenant=tenant)
+            self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
         else:
-            self.fields['service'].queryset = Service.objects.none()    
+            self.fields['service'].queryset = Service.objects.none()
+            self.fields['location_id'].queryset = Location.objects.none()
 
     def get_service_names(self, obj):
         """Get the names of the services offered at the location."""
         return [service.name for service in obj.service.all()]
+    
     def get_price(self, obj):
-        return obj.price if obj.price is not None else 0.00
+        """Calculate total price from all services in the package."""
+        if hasattr(obj, 'service'):
+            total_price = sum(service.price or 0 for service in obj.service.all())
+            return total_price
+        return 0.00
     
     def validate(self, data):
         """Validate the data before creating a new location service package."""
         request = self.context.get('request')  # get request from context
         tenant = request.user if request.user.is_authenticated else None
-        location = Location.objects.filter(tenant=tenant).first()
-        if not location or not isinstance(location, Location):
-            raise serializers.ValidationError(_("Valid location is required."))
         
-        name =data.get('name',None)
-        if not name or not name.strip():
-            raise serializers.ValidationError(_("Name is required."))
-        if LocationService.objects.filter(name=name, location__tenant=tenant).exclude(id=self.instance.id if self.instance else None).exists():
-            raise serializers.ValidationError(_("Location service with this name already exists for this location."))
-        #validation of services belonging to the tenant
+        if not tenant:
+            raise serializers.ValidationError(_("Authentication required."))
+        
+        # Get the selected location from the data
+        location = data.get('location')  # This will be the Location object now
+        if not location:
+            raise serializers.ValidationError({
+                'location_id': _("Location is required.")
+            })
+        
+        # Validate location belongs to tenant
+        if location.tenant != tenant:
+            raise serializers.ValidationError({
+                'location_id': _("Selected location does not belong to your tenant.")
+            })
+        
+        # Validate name
+        name = data.get('name', '')
+        if not name.strip():
+            raise serializers.ValidationError({
+                'name': _("Name is required.")
+            })
+        
+        # Check for duplicate names within the same location
+        existing_query = LocationService.objects.filter(
+            name=name, 
+            location=location
+        )
+        
+        # Exclude current instance during updates
+        if self.instance:
+            existing_query = existing_query.exclude(id=self.instance.id)
+            
+        if existing_query.exists():
+            raise serializers.ValidationError({
+                'name': _("Location service with this name already exists for this location.")
+            })
+        
+        # Validate services belong to tenant
         services = data.get('service', [])
+        if not services:
+            raise serializers.ValidationError({
+                'service': _("At least one service must be selected.")
+            })
+            
         for service in services:
             if service.tenant != tenant:
-                raise serializers.ValidationError(_("Service with ID {} does not belong to the tenant.").format(service.id))
+                raise serializers.ValidationError({
+                    'service': _("Service '{}' does not belong to your tenant.").format(service.name)
+                })
         
         return data
 
     def create(self, validated_data):
         """Create a new location service package instance."""
-        service = validated_data.pop('service')
+        services = validated_data.pop('service')
+        
+    
         location_service = LocationService.objects.create(**validated_data)
-        location_service.service.set(service)
+        location_service.service.set(services)
         return location_service
     
     def update(self, instance, validated_data):
         """Update an existing location service package instance."""
+        services = validated_data.pop('service', None)
+        
+        # Update basic fields
         instance.name = validated_data.get('name', instance.name)
         instance.duration = validated_data.get('duration', instance.duration)
         instance.description = validated_data.get('description', instance.description)
-       
         
-        if 'service' in validated_data:
-            services = validated_data.pop('service')
-            instance.service.set(services)
+        # Update location if provided
+        if 'location' in validated_data:
+            instance.location = validated_data.get('location')
         
         instance.save()
+        
+        # Update services if provided
+        if services is not None:
+            instance.service.set(services)
         
         return instance

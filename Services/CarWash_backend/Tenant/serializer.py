@@ -317,13 +317,22 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
-            tenant = request.user
-            Location = get_location_model()
+            user = request.user
+            tenant = None
             
-            # Filter locations by tenant
-            self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
-            # Filter roles by tenant/location
-            self.fields['role_id'].queryset = StaffRole.objects.filter(tenant=tenant, location__in=self.fields['location_id'].queryset)
+            # Determine tenant based on user type
+            if hasattr(user, 'tenant_profile'):  # This is a Tenant user
+                tenant = user
+            elif hasattr(user, 'tenant'):  # This is a Staff user
+                tenant = user.tenant
+            
+            if tenant:
+                Location = get_location_model()
+                Booking = get_booking_model()
+
+                self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
+                self.fields['booking_id'].queryset = Booking.objects.filter(location__tenant=tenant)
+                self.fields['assigned_to_id'].queryset = StaffProfile.objects.filter(tenant=tenant)
         else:
             Location = get_location_model()
             self.fields['location_id'].queryset = Location.objects.none()
@@ -403,71 +412,45 @@ class CreateEmployeeSerializer(serializers.ModelSerializer):
 # Car Check-in Items Serializer
 class CarCheckInItemsSerializer(serializers.ModelSerializer):
     #nested serializer for car check-in items
+    task_booking_number = serializers.CharField(source='task.booking_number', read_only=True)
     task_description = serializers.CharField(source='task.description', read_only=True)
-    car_information = serializers.SerializerMethodField(read_only=True)
     checkin_status = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = CarCheckIn
-        fields = ['task', 'car_plate_number', 'car_model', 'checkin_items', 'checkout_items']
+        fields = ['task', 'car_plate_number', 'car_model', 'checkin_items', 'checkout_items','checkin_status', 'task_booking_number', 'task_description', 'checkout_time']
         read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
 
-    def get_car_information(self, obj):
-        """Return car information."""
-        if obj.car:
-            return {
-                'id': obj.car.id,
-                'make': obj.car.make,
-                'model': obj.car.model,
-                'year': obj.car.year
-            }
+    def get_booking_number(self, obj):
+        """Get booking number from the task."""
+        if obj.task and hasattr(obj.task, 'booking_made'):
+            return obj.task.booking_made.booking_number
         return None
+    
     def get_checkin_status(self, obj):
-        """get check-in status./ checkout status"""
+        """Determine the check-in status based on checkout time."""
         if obj.checkout_time:
             return 'checked_out'
         return 'checked_in'
-
-
-    def validate_car_plate(self, value):
-        """Validate car plate format"""
-        if value and len(value) < 4:
-            raise serializers.ValidationError(_('Car plate must be at least 4 characters long.'))
-        return value.upper() if  value else value
-    
     def validate(self, data):
         """Custom validation for car check-in items."""
-        checkin_item = data.get('checkin_item')
-        #check if the checkin items are provided
-        if not checkin_item or not checkin_item.get('car_plate'):
-            raise serializers.ValidationError({
-                'checkin_item': _('Car plate is required for check-in.')
-            })
+     
 
-        # Check if the task is valid
-        task = data.get('task')
-        if not task:
-            raise serializers.ValidationError({
-                'task': _('Task is required for car check-in.')
-            })
-        #check if the checkout time is not provided when creating a new check-in
+        # Check if the checkout time is not provided when creating a new check-in
         if 'checkout_time' in data and data['checkout_time'] is not None:
             raise serializers.ValidationError({
                 'checkout_time': _('Checkout time should not be provided when creating a new check-in.')
             })
-        
-        
+
         return data
-   
 
 # Enhanced Task Serializer/ task creation for tenant
 class TaskSerializer(serializers.ModelSerializer):
     """
-    this serializer is used to create and update tasks for the tenant.
-    It includes fields for task details, location, booking, and assigned staff.
-    task are assigned based on the tenant's location and booking services.
-    It also includes methods to get next possible status and booking location service services.
+    Enhanced serializer for task creation and management with car check-in items.
+    Check-in items are created automatically when a task is assigned.
     """
+    # Read-only display fields
     assigned_to = serializers.CharField(source='assigned_to.username', read_only=True)
     location = serializers.CharField(source='location.name', read_only=True)
     tenant = serializers.CharField(source='tenant.name', read_only=True)
@@ -475,12 +458,11 @@ class TaskSerializer(serializers.ModelSerializer):
     booking_location_service_services = serializers.SerializerMethodField(read_only=True)
     next_possible_status = serializers.SerializerMethodField(read_only=True)
     
-    # Read only fields for car_check-in items for display
-    car_check_in_items = CarCheckInItemsSerializer(many=True, read_only=True)
-    total_check_in_items = serializers.IntegerField(source='car_check_in_items.count', read_only=True)
-    
+    # Car check-in items (read-only for display)
+    car_checkins = CarCheckInItemsSerializer(many=True, read_only=True)
+    total_checkin_items = serializers.SerializerMethodField(read_only=True)
 
-    # Write only fields
+    # Write-only fields for task creation
     assigned_to_id = serializers.PrimaryKeyRelatedField(
         source='assigned_to',
         queryset=StaffProfile.objects.none(),
@@ -502,29 +484,34 @@ class TaskSerializer(serializers.ModelSerializer):
         required=True
     )
     
-    #write only field for car check-in items
-    car_checkin_data=CarCheckInItemsSerializer(
+    # Car check-in items for creation
+    checkin_items_data = CarCheckInItemsSerializer(
         many=True,
         write_only=True,
-        required=False,
-        allow_empty=True,
-        error_messages={
-            'required': _('Car check-in items are required.'),
-            'empty': _('At least one car check-in item is required.')
-        }
+        required=True,  # Make it required so check-in items must be provided
+        help_text="List of car check-in items to create with this task"
     )
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
-            tenant = request.user
-            Location = get_location_model()
-            Booking = get_booking_model()
+            user = request.user
+            tenant = None
+            
+            # Determine tenant based on user type
+            if hasattr(user, 'tenant_profile'):  # This is a Tenant user
+                tenant = user
+            elif hasattr(user, 'tenant'):  # This is a Staff user
+                tenant = user.tenant
+            
+            if tenant:
+                Location = get_location_model()
+                Booking = get_booking_model()
 
-            self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
-            self.fields['booking_id'].queryset = Booking.objects.filter(location__tenant=tenant)
-            self.fields['assigned_to_id'].queryset = StaffProfile.objects.filter(tenant=tenant)
+                self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
+                self.fields['booking_id'].queryset = Booking.objects.filter(location__tenant=tenant)
+                self.fields['assigned_to_id'].queryset = StaffProfile.objects.filter(tenant=tenant)
     
     def get_next_possible_status(self, obj):
         """Return the next possible status for a task."""
@@ -543,31 +530,35 @@ class TaskSerializer(serializers.ModelSerializer):
             return [{'id': service.id, 'name': service.name, 'price': str(service.price)} for service in services]
         return []
 
+    def get_total_checkin_items(self, obj):
+        """Get total number of check-in items."""
+        return obj.car_checkins.count()
+
     class Meta:
         model = Task
         fields = [
-             'location', 'booking_made', 'description', 'tenant', 'car_check_in_items','total_check_in_items','car_checkin_data',
+            'task_id', 'location', 'booking_made', 'description', 'tenant',
             'assigned_to', 'status', 'priority', 'due_date', 'assigned_to_id',
             'location_id', 'booking_id', 'booking_location_service_services', 
-            'next_possible_status', 'created_at', 'updated_at',
+            'next_possible_status', 'car_checkins', 'total_checkin_items',
+            'checkin_items_data', 'created_at', 'updated_at'
         ]
-        read_only_fields = ('id', 'tenant', 'created_at', 'updated_at')
+        read_only_fields = ('task_id', 'tenant', 'created_at', 'updated_at')
 
     def validate(self, data):
-        """Validate task creation."""
-        
-        #check if the task with the same booking_number already exists
-        
+        """Validate task creation with enhanced check-in validation."""
         booking = data.get('booking_made')
         if booking and booking.status not in ['confirmed', 'completed']:
             raise serializers.ValidationError({
                 'booking_made': _('Booking must be confirmed or completed to assign a task.')
             })
             
-             #check if the task with the same booking_number already exists
-        if Task.objects.filter(booking_made=booking).exists():
+        # Check if task with same booking already exists
+        if booking and Task.objects.filter(booking_made=booking).exclude(
+            task_id=self.instance.task_id if self.instance else None
+        ).exists():
             raise serializers.ValidationError({
-                'booking_made': _('A task with this booking number {} already exists.').format(booking.booking_number)
+                'booking_made': _('A task with booking number {} already exists.').format(booking.booking_number)
             })
         
         assigned_to = data.get('assigned_to')
@@ -579,17 +570,35 @@ class TaskSerializer(serializers.ModelSerializer):
                     'assigned_to_id': _('You can only assign tasks to your own staff.')
                 })
 
+        # Validate check-in items (required for task creation)
+        checkin_items_data = data.get('checkin_items_data', [])
+        if not checkin_items_data:
+            raise serializers.ValidationError({
+                'checkin_items_data': _('At least one check-in item must be provided when creating a task.')
+            })
+            
+            """
+        for idx, item_data in enumerate(checkin_items_data):
+            if not item_data.get('car_plate_number'):
+                raise serializers.ValidationError({
+                    f'checkin_items_data[{idx}].car_plate_number': _('Car plate number is required.')
+                })
+            if not item_data.get('checkin_items'):
+                raise serializers.ValidationError({
+                    f'checkin_items_data[{idx}].checkin_items': _('Check-in items must be specified.')
+                })"""
+
         return data
 
     def create(self, validated_data):
-        """Create a new task instance."""
+        """Create a new task instance with car check-in items automatically."""
+        # Extract check-in items data
+        checkin_items_data = validated_data.pop('checkin_items_data', [])
         
-        checkin_items_data = validated_data.pop('car_checkin_data', [])
-        #setting default status to 'pending' if not provided
+        # Set default values
         if 'status' not in validated_data:
             validated_data['status'] = 'pending'
             
-        #setting default priority to 'medium' if not provided
         if 'priority' not in validated_data:
             validated_data['priority'] = 'medium'
             
@@ -597,7 +606,16 @@ class TaskSerializer(serializers.ModelSerializer):
         tenant = getattr(request, 'user', None)
         validated_data['tenant'] = tenant
         
+        # Create the task
         task = Task.objects.create(**validated_data)
+        
+        # Automatically create associated car check-in items
+        for item_data in checkin_items_data:
+            CarCheckIn.objects.create(
+                task=task,
+                **item_data  # No need to set tenant since CarCheckIn model doesn't have tenant field based on your model
+            )
+        
         return task
         
     def update(self, instance, validated_data):
