@@ -1,313 +1,560 @@
 from multiprocessing import AuthenticationError
 from django.shortcuts import render
-from ast import Is
-from tkinter import E
-from .serializer import LocationSerializer, LocationUpdateSerializer, ServiceSerializer, LocationServiceSerializer, ServiceUpdateSerializer
-from django.utils.translation import gettext_lazy as _
-from django.forms import ValidationError
-from rest_framework import generics, permissions, serializers
+from rest_framework import generics, permissions, serializers, status
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.contrib.auth.models import User
-from .models import Tenant, Location, Service, LocationService
 from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken, AccessToken,TokenError  # This import is used to generate JWT tokens for user authentication
+from django.utils.translation import gettext_lazy as _
+from .serializer import (
+    LocationSerializer, LocationUpdateSerializer, ServiceSerializer, 
+    LocationServiceSerializer
+)
+from .models import Location, Service, LocationService
+from django.db import transaction
 
-
-#view to handle Location creation based on tenant
 class LocationCreateView(generics.CreateAPIView):
     """
-    API view to create a new location for a tenant.
+     API view to create a new location for a tenant with comprehensive error handling.
     """
-    permission_classes = [IsAuthenticated]  # Allow only authenticated users to create a location
+    permission_classes = [IsAuthenticated]
     serializer_class = LocationSerializer
-    queryset = Location.objects.all()
-    # performs the creation of a new location
-    #allow only authenticated login tenant to create a location
-    def perform_create(self, serializer):
-        """Handle the creation of a new location."""
-        #assigning tenant as the current login user
-        tenant = self.request.user # assuming the user is a tenant
-        if not tenant.is_authenticated:
-            raise AuthenticationError(_("You must be logged in to create a location."))
-        serializer.save(tenant=tenant)  # Save the location with the tenant as the owner
+    
+    def get_serializer_context(self):
+        """Add tenant to serializer context."""
+        context = super().get_serializer_context()
+        context['tenant'] = self.request.user
+        return context
+    
+    def create(self, request, *args, **kwargs):
+        """Handle location creation with enhanced response format."""
+        try:
+            with transaction.atomic():
+                serializer = self.get_serializer(data=request.data)
+                if serializer.is_valid():
+                    location = serializer.save()
+                    return Response({
+                        'success': True,
+                        'message': 'Location created successfully',
+                        'data': serializer.data
+                    }, status=status.HTTP_201_CREATED)
+                
+                return Response({
+                    'success': False,
+                    'message': 'Validation failed',
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
         
-        
-    #view to handle Location update based on tenant
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while creating the location',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class LocationUpdateView(generics.UpdateAPIView):
-    """ API view to update an existing location for a tenant.
     """
-    permission_classes = [AllowAny]  # Only authenticated users can update a location
+    API view to update an existing location for a tenant.
+    """
+    permission_classes = [IsAuthenticated]
     serializer_class = LocationUpdateSerializer
-    queryset = Location.objects.all()
-
+    
     def get_object(self):
-        """Get the location object based on the provided ID."""
+        """Get location object filtered by tenant."""
         location_id = self.kwargs.get('pk')
+        tenant = self.request.user
+        
         try:
-            return Location.objects.get(id=location_id)
+            return Location.objects.get(id=location_id, tenant=tenant)
         except Location.DoesNotExist:
-            raise serializers.ValidationError(_("Location with this ID does not exist."))
-
+            raise serializers.ValidationError({
+                'detail': _("Location not found or you don't have permission to access it")
+            })
+    
     def update(self, request, *args, **kwargs):
-        """Handle the update of an existing location."""
-        instance = self.tenant = self.request.user
-    
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)
-    
-    #view to handle Location deletion based on tenant
+        """Handle location update with enhanced response."""
+        try:
+            partial = kwargs.pop('partial', True)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            
+            if serializer.is_valid():
+                self.perform_update(serializer)
+                return Response({
+                    'success': True,
+                    'message': 'Location updated successfully',
+                    'data': serializer.data
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'success': False,
+                'message': 'Validation failed',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while updating the location',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class LocationDeleteView(generics.DestroyAPIView):
-    
-    permission_classes = [AllowAny]  # Only authenticated users can delete a location
-    """API view to delete an existing location for a tenant.
     """
+     API view to delete an existing location for a tenant.
+    """
+    permission_classes = [IsAuthenticated]
     
     def get_object(self):
-        """Get the location object based on the provided ID."""
-        pk=self.kwargs.get('pk')
+        """Get location object filtered by tenant."""
+        location_id = self.kwargs.get('pk')
         tenant = self.request.user
-        if not tenant:
-            raise serializers.ValidationError(_("Tenant-ID header is required."))
+        
         try:
-            tenant = Tenant.objects.get(id=tenant.id)
-        except Tenant.DoesNotExist:
-            raise serializers.ValidationError(_("Tenant with this ID does not exist."))
-        try:
-            return Location.objects.get(id=pk, tenant=tenant)
+            return Location.objects.get(id=location_id, tenant=tenant)
         except Location.DoesNotExist:
-            raise serializers.ValidationError(_("Location with this ID does not exist for this tenant."))
-    def delete(self, request, *args, **kwargs):
-        """Handle the deletion of an existing location."""
-        instance = self.get_object()
-        if not instance:
-            return Response({'details': 'Location not found.'}, status=404)
-        self.perform_destroy(instance)
-        return Response({'details': 'Location deleted successfully.'}, status=204)
+            raise serializers.ValidationError({
+                'detail': _("Location not found or you don't have permission to delete it")
+            })
     
-#class to handle the listing of all locations
+    def destroy(self, request, *args, **kwargs):
+        """Handle location deletion with enhanced response."""
+        try:
+            instance = self.get_object()
+            
+            # Check if location has active services
+            if instance.location_services.exists():
+                return Response({
+                    'success': False,
+                    'message': 'Cannot delete location with active service packages',
+                    'error': 'Please remove all service packages before deleting this location'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            self.perform_destroy(instance)
+            return Response({
+                'success': True,
+                'message': 'Location deleted successfully'
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while deleting the location',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+#api view to handle activation of the location
+
+class LocationActivateView(generics.DestroyAPIView):
+    """
+     API view to activate an existing location for a tenant.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self):
+        """Get location object filtered by tenant."""
+        location_id = self.kwargs.get('pk')
+        tenant = self.request.user
+        
+        try:
+            return Location.objects.get(id=location_id, tenant=tenant)
+        except Location.DoesNotExist:
+            raise serializers.ValidationError({
+                'detail': _("Location not found or you don't have permission to delete it")
+            })
+    
+    def destroy(self, request, *args, **kwargs):
+        """Handle location deletion with enhanced response."""
+        try:
+            instance = self.get_object()
+            
+            # Check if location has active services
+            if instance.location_services.exists():
+                return Response({
+                    'success': False,
+                    'message': 'Cannot delete location with active service packages',
+                    'error': 'Please remove all service packages before deleting this location'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            instance.is_active = True
+            instance.save()
+            return Response({
+                'success': True,
+                'message': 'Location activated successfully'
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while activating the location',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 class LocationListView(generics.ListAPIView):
     """
-    API view to list all locations for a login in  tenant.
+    Enhanced API view to list all locations for a tenant with pagination.
     """
     permission_classes = [IsAuthenticated]
     serializer_class = LocationSerializer
-
-    #queryset method to get all locations for a tenant
+    
     def get_queryset(self):
-        tenant= self.request.user  # assuming the user is a tenant
-        return Location.objects.filter(tenant=tenant)  # Filter locations by tenant
+        """Filter locations by authenticated tenant."""
+        return Location.objects.filter(tenant=self.request.user).order_by('-created_at')
     
-    
-#class to handle the creation of a service
+    def list(self, request, *args, **kwargs):
+        """Handle location listing with enhanced response."""
+        try:
+            queryset = self.get_queryset()
+            page = self.paginate_queryset(queryset)
+            
+            if page is not None:
+                serializer = self.get_serializer(page, many=True)
+                return self.get_paginated_response({
+                    'success': True,
+                    'message': 'Locations retrieved successfully',
+                    'data': serializer.data
+                })
+            
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                'success': True,
+                'message': 'Locations retrieved successfully',
+                'data': serializer.data,
+                'count': queryset.count()
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while retrieving locations',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class ServiceCreateView(generics.CreateAPIView):
     """
-    API view to create a new service.
-    """
-    permission_classes = [IsAuthenticated]  # Allow only authenticated users to create a service
-    serializer_class = ServiceSerializer
-
-    def perform_create(self, serializer):
-        """Handle the creation of a new service."""
-        tenant = self.request.user  # assuming the user is a tenant
-        serializer.is_valid(raise_exception=True)
-        serializer.save(tenant=tenant)  # Save the service with the tenant as the owner
-
-#class to handle service listing
-class ServiceListView(generics.ListAPIView):
-    """
-    API view to list all services for a tenant.
+    Enhanced API view to create a new service with comprehensive validation.
     """
     permission_classes = [IsAuthenticated]
     serializer_class = ServiceSerializer
+    
+    def get_serializer_context(self):
+        """Add tenant to serializer context."""
+        context = super().get_serializer_context()
+        context['tenant'] = self.request.user
+        return context
+    
+    def create(self, request, *args, **kwargs):
+        """Handle service creation with enhanced response."""
+        try:
+            with transaction.atomic():
+                serializer = self.get_serializer(data=request.data)
+                if serializer.is_valid():
+                    service = serializer.save()
+                    return Response({
+                        'success': True,
+                        'message': 'Service created successfully',
+                        'data': serializer.data
+                    }, status=status.HTTP_201_CREATED)
+                
+                return Response({
+                    'success': False,
+                    'message': 'Validation failed',
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while creating the service',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class ServiceListView(generics.ListAPIView):
+    """
+    Enhanced API view to list all services for a tenant.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ServiceSerializer
+    
     def get_queryset(self):
-        tenant = self.request.user  # assuming the user is a tenant
-        return Service.objects.filter(tenant=tenant)  # Filter services by tenant
-
-#class to handle the update of a service
+        """Filter services by authenticated tenant."""
+        return Service.objects.filter(tenant=self.request.user).order_by('name')
+    
+    def list(self, request, *args, **kwargs):
+        """Handle service listing with enhanced response."""
+        try:
+            queryset = self.get_queryset()
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                'success': True,
+                'message': 'Services retrieved successfully',
+                'data': serializer.data,
+                'count': queryset.count()
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while retrieving services',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ServiceUpdateView(generics.UpdateAPIView):
     """
-    API view to update an existing service.
+    Enhanced API view to update an existing service.
     """
-    permission_classes = [IsAuthenticated]  # Only authenticated users can update a service
-    serializer_class = ServiceUpdateSerializer
-
-
-   
-   
+    permission_classes = [IsAuthenticated]
+    serializer_class = ServiceSerializer
     
-
     def get_object(self):
-        """Get the service object based on the provided ID."""
+        """Get service object filtered by tenant."""
         service_id = self.kwargs.get('pk')
-        tenant = self.request.user  # assuming the user is a tenant
-       
-        try:
-            return Service.objects.get(id=service_id,tenant=tenant)
-        except Service.DoesNotExist:
-            raise serializers.ValidationError(_("Service with this ID does not exist."))
-
-    def update(self, request, *args, **kwargs):
-        """Handle the update of an existing service."""
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)
-    
-    
-    #class to handle the deletion of services
-
-class ServiceDeleteView(generics.DestroyAPIView):
-
-    """
-    API view to delete an existing service.
-    """
-    permission_classes = [IsAuthenticated]  # Only authenticated users can delete a service
-
-    def get_object(self):
-        """Get the service object based on the provided ID."""
-        tenant = self.request.user  # assuming the user is a tenant
-        service_id = self.kwargs.get('pk')
+        tenant = self.request.user
         
         try:
             return Service.objects.get(id=service_id, tenant=tenant)
         except Service.DoesNotExist:
-            raise serializers.ValidationError(_("Service with this ID does not exist."))
-
-    def delete(self, request, *args, **kwargs):
-        """Handle the deletion of an existing service."""
-        instance = self.get_object()
-        if not instance:
-            return Response({'details': 'Service not found.'}, status=404)
-        self.perform_destroy(instance)
-        return Response({'details': 'Service deleted successfully.'}, status=204)
+            raise serializers.ValidationError({
+                'detail': _("Service not found or you don't have permission to access it")
+            })
+    
+    def get_serializer_context(self):
+        """Add tenant to serializer context."""
+        context = super().get_serializer_context()
+        context['tenant'] = self.request.user
+        return context
+    
+    def update(self, request, *args, **kwargs):
+        """Handle service update with enhanced response."""
+        try:
+            partial = kwargs.pop('partial', True)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            
+            if serializer.is_valid():
+                self.perform_update(serializer)
+                return Response({
+                    'success': True,
+                    'message': 'Service updated successfully',
+                    'data': serializer.data
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'success': False,
+                'message': 'Validation failed',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
         
-#class to handle the creation of a location service package for a specified location by logged in tenant
-# This package includes multiple services and is associated with a specific location.
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while updating the service',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class ServiceDeleteView(generics.DestroyAPIView):
+    """
+    Enhanced API view to delete an existing service.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self):
+        """Get service object filtered by tenant."""
+        service_id = self.kwargs.get('pk')
+        tenant = self.request.user
+        
+        try:
+            return Service.objects.get(id=service_id, tenant=tenant)
+        except Service.DoesNotExist:
+            raise serializers.ValidationError({
+                'detail': _("Service not found or you don't have permission to delete it")
+            })
+    
+    def destroy(self, request, *args, **kwargs):
+        """Handle service deletion with enhanced response."""
+        try:
+            instance = self.get_object()
+            
+            # Check if service is used in any location services
+            if instance.location_services.exists():
+                return Response({
+                    'success': False,
+                    'message': 'Cannot delete service that is used in service packages',
+                    'error': f'Service is used in {instance.location_services.count()} package(s)'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            self.perform_destroy(instance)
+            return Response({
+                'success': True,
+                'message': 'Service deleted successfully'
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while deleting the service',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class LocationServiceCreateView(generics.CreateAPIView):
     """
-    API view to create a new location service package for a specified location by logged in tenant.
+    Enhanced API view to create a new location service package.
     """
-    
     permission_classes = [IsAuthenticated]
     serializer_class = LocationServiceSerializer
     
-    def perform_create(self, serializer):
-        """Handle the creation of a new location service package."""
-        
-        serializer.save()
-
     def create(self, request, *args, **kwargs):
-        """Handle the creation of a new location service package with enhanced response."""
-        serializer = self.get_serializer(data=request.data)
-        
-        if serializer.is_valid():
-            self.perform_create(serializer)
-            headers = self.get_success_headers(serializer.data)
-            
-            return Response({
-                'success': True,
-                'message': 'Location service package created successfully',
-                'data': serializer.data
-            }, status=201, headers=headers)
-        
-        return Response({
-            'success': False,
-            'message': 'Validation failed',
-            'errors': serializer.errors
-        }, status=400)
-
-#class to handle the deletion of a location service package
-class LocationServiceDeleteView(generics.DestroyAPIView):
-    """
-    API view to delete an existing location service package.
-    """
-    permission_classes = [AllowAny]  # Only authenticated users can delete a location service package
-
-    def get_object(self):
-        """Get the location service package object based on the provided ID."""
-        pk = self.kwargs.get('pk')
-        tenant = self.request.user  # assuming the user is a tenant
-        if not tenant:
-            raise serializers.ValidationError(_("You must be logged in to delete a location service package."))
+        """Handle location service creation with enhanced response."""
         try:
-            return LocationService.objects.get(id=pk, location__tenant=tenant)
-        except LocationService.DoesNotExist:
-            raise serializers.ValidationError(_("Location Service Package with this ID does not exist."))
+            with transaction.atomic():
+                serializer = self.get_serializer(data=request.data)
+                if serializer.is_valid():
+                    location_service = serializer.save()
+                    return Response({
+                        'success': True,
+                        'message': 'Service package created successfully',
+                        'data': serializer.data
+                    }, status=status.HTTP_201_CREATED)
+                
+                return Response({
+                    'success': False,
+                    'message': 'Validation failed',
+                    'errors': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while creating the service package',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def delete(self, request, *args, **kwargs):
-        """Handle the deletion of an existing location service package."""
-        instance = self.get_object()
-        if not instance:
-            return Response({'details': 'Location Service Package not found.'}, status=404)
-        self.perform_destroy(instance)
-        return Response({'details': 'Location Service Package deleted successfully.'}, status=204)
-    
-    
-#class list all the location services
 class LocationServiceListView(generics.ListAPIView):
     """
-    API view to list all location service packages.
+    Enhanced API view to list all location service packages.
     """
-    permission_classes = [IsAuthenticated]  # Allow only authenticated users to view location service packages
+    permission_classes = [IsAuthenticated]
     serializer_class = LocationServiceSerializer
     
-    #get_queryset method to filter location services by tenant
     def get_queryset(self):
-        tenant = self.request.user  # assuming the user is a tenant
-        if not tenant:
-            raise serializers.ValidationError(_("You must be logged in to view location services."))
-        return LocationService.objects.filter(location__tenant=tenant)  # Filter location services by tenant
+        """Filter location services by authenticated tenant."""
+        return LocationService.objects.filter(
+            location__tenant=self.request.user
+        ).select_related('location').prefetch_related('service').order_by('-created_at')
     
-    """
-    def get_queryset(self):
-        Override to filter location services by tenant
-        tenant_id = self.request.headers.get('Tenant-ID')
-        if not tenant_id:
-            raise serializers.ValidationError(_("Tenant-ID header is required."))
+    def list(self, request, *args, **kwargs):
+        """Handle location service listing with enhanced response."""
         try:
-            tenant = Tenant.objects.get(id=tenant_id)
-        except Tenant.DoesNotExist:
-            raise serializers.ValidationError(_("Tenant with this ID does not exist."))
-        return LocationService.objects.filter(location__tenant=tenant)"""
+            queryset = self.get_queryset()
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                'success': True,
+                'message': 'Service packages retrieved successfully',
+                'data': serializer.data,
+                'count': queryset.count()
+            }, status=status.HTTP_200_OK)
         
-#class to handle retrieving/update  of a specific location service package
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while retrieving service packages',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class LocationServiceDetailView(generics.RetrieveUpdateAPIView):
     """
-    API view to retrieve and update a specific location service package.
+    Enhanced API view to retrieve and update a specific location service package.
     """
-    permission_classes = [IsAuthenticated]  # Allow only authenticated users to view and update location service packages
+    permission_classes = [IsAuthenticated]
     serializer_class = LocationServiceSerializer
-    queryset = LocationService.objects.all()
-
+    
     def get_object(self):
-        """Get the location service package object based on the provided ID."""
+        """Get location service filtered by tenant."""
         pk = self.kwargs.get('pk')
-        tenant = self.request.user  # assuming the user is a tenant
-        if not tenant:
-            raise serializers.ValidationError(_("You must be logged in to view location services."))
+        tenant = self.request.user
+        
         try:
             return LocationService.objects.get(id=pk, location__tenant=tenant)
         except LocationService.DoesNotExist:
-            raise serializers.ValidationError(_("Location Service Package with this ID does not exist."))
-    def retrieve(self, request, *args, **kwargs):
-        """Handle the retrieval of a specific location service package."""
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-
-    def update(self, request, *args, **kwargs):
-        """Handle the update of a specific location service package."""
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)
+            raise serializers.ValidationError({
+                'detail': _("Service package not found or you don't have permission to access it")
+            })
     
-#class to handle the retrieval of all locations for a tenant
+    def retrieve(self, request, *args, **kwargs):
+        """Handle service package retrieval with enhanced response."""
+        try:
+            instance = self.get_object()
+            serializer = self.get_serializer(instance)
+            return Response({
+                'success': True,
+                'message': 'Service package retrieved successfully',
+                'data': serializer.data
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while retrieving the service package',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def update(self, request, *args, **kwargs):
+        """Handle service package update with enhanced response."""
+        try:
+            partial = kwargs.pop('partial', True)
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            
+            if serializer.is_valid():
+                self.perform_update(serializer)
+                return Response({
+                    'success': True,
+                    'message': 'Service package updated successfully',
+                    'data': serializer.data
+                }, status=status.HTTP_200_OK)
+            
+            return Response({
+                'success': False,
+                'message': 'Validation failed',
+                'errors': serializer.errors
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while updating the service package',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class LocationServiceDeleteView(generics.DestroyAPIView):
+    """
+    Enhanced API view to delete an existing location service package.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self):
+        """Get location service filtered by tenant."""
+        pk = self.kwargs.get('pk')
+        tenant = self.request.user
+        
+        try:
+            return LocationService.objects.get(id=pk, location__tenant=tenant)
+        except LocationService.DoesNotExist:
+            raise serializers.ValidationError({
+                'detail': _("Service package not found or you don't have permission to delete it")
+            })
+    
+    def destroy(self, request, *args, **kwargs):
+        """Handle service package deletion with enhanced response."""
+        try:
+            instance = self.get_object()
+            self.perform_destroy(instance)
+            return Response({
+                'success': True,
+                'message': 'Service package deleted successfully'
+            }, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while deleting the service package',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

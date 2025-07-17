@@ -7,306 +7,519 @@ from django.db.models import Q
 from Staff.models import StaffProfile, StaffRole
 from django.contrib.auth.hashers import check_password
 from Location.models import Location, Service, LocationService
+from decimal import Decimal
 
-#serializer to handle location creation based on tenant
+# Enhanced serializer for location creation with better mobile support
 class LocationSerializer(serializers.ModelSerializer):
     """
-    Serializer for creating a new location. with flutter mobile support
+    Enhanced serializer for creating a new location with Flutter mobile support.
     """
-    name = serializers.CharField(max_length=255, required=True, help_text=_("Name of the location"))
-    address = serializers.CharField(max_length=255, required=True, help_text=_("Address of the location"))
-    latitude = serializers.FloatField(required=True, help_text=_("Latitude of the location"))
-    longitude = serializers.FloatField(required=True, help_text=_("Longitude of the location"))
-    contact_number = serializers.CharField(max_length=20, required=True, allow_blank=True, help_text=_("Contact number of the location"))
-    email = serializers.EmailField(required=True, allow_blank=True, help_text=_("Email address of the location"))
+    # Core location fields
+    name = serializers.CharField(
+        max_length=255, 
+        required=True, 
+        help_text=_("Name of the location"),
+        error_messages={
+            'required': 'Location name is required',
+            'blank': 'Location name cannot be empty',
+            'max_length': 'Location name cannot exceed 255 characters'
+        }
+    )
+    address = serializers.CharField(
+        max_length=255, 
+        required=True, 
+        help_text=_("Address of the location"),
+        error_messages={
+            'required': 'Address is required',
+            'blank': 'Address cannot be empty'
+        }
+    )
+    latitude = serializers.FloatField(
+        required=True, 
+        help_text=_("Latitude of the location"),
+        min_value=-90.0,
+        max_value=90.0,
+        error_messages={
+            'required': 'Latitude is required',
+            'min_value': 'Latitude must be between -90 and 90',
+            'max_value': 'Latitude must be between -90 and 90'
+        }
+    )
+    longitude = serializers.FloatField(
+        required=True, 
+        help_text=_("Longitude of the location"),
+        min_value=-180.0,
+        max_value=180.0,
+        error_messages={
+            'required': 'Longitude is required',
+            'min_value': 'Longitude must be between -180 and 180',
+            'max_value': 'Longitude must be between -180 and 180'
+        }
+    )
+    contact_number = serializers.CharField(
+        max_length=20, 
+        required=True, 
+        allow_blank=False, 
+        help_text=_("Contact number of the location (must start with +254)"),
+        error_messages={
+            'required': 'Contact number is required',
+            'blank': 'Contact number cannot be empty'
+        }
+    )
+    email = serializers.EmailField(
+        required=False, 
+        allow_blank=True, 
+        help_text=_("Email address of the location"),
+        error_messages={
+            'invalid': 'Enter a valid email address'
+        }
+    )
+    
+    # Read-only fields for mobile display
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    total_services = serializers.SerializerMethodField(read_only=True)
+    total_location_services = serializers.SerializerMethodField(read_only=True)
+    is_active = serializers.SerializerMethodField(read_only=True)
+    created_at_formatted = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = Location
-        fields = ["name", "address", "latitude", "longitude", "contact_number", "email", 'id']
-        read_only_fields = ["created_at", "updated_at", "tenant", "id"]
+        fields = [
+            "id", "name", "address", "latitude", "longitude", 
+            "contact_number", "email", "tenant_name", "total_services",
+            "total_location_services", "is_active", "created_at", 
+            "updated_at", "created_at_formatted"
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "tenant"]
         
-    #method to check if there is a another name the same to this
+    def get_total_services(self, obj):
+        """Get total number of services available for this location's tenant."""
+        return obj.tenant.services.count() if obj.tenant else 0
+    
+    def get_total_location_services(self, obj):
+        """Get total number of service packages for this location."""
+        return obj.location_services.count()
+    
+    def get_is_active(self, obj):
+        """Check if location has any active service packages."""
+        return obj.location_services.exists()
+    
+    def get_created_at_formatted(self, obj):
+        """Format created_at for mobile display."""
+        return obj.created_at.strftime("%Y-%m-%d %H:%M") if obj.created_at else None
+
+    def validate_contact_number(self, value):
+        """Validate Kenya phone number format."""
+        if not value.startswith("+254"):
+            raise serializers.ValidationError(_("Contact number must start with +254"))
+        
+        # Remove +254 and check remaining digits
+        remaining = value[4:]
+        if not remaining.isdigit() or len(remaining) != 9:
+            raise serializers.ValidationError(_("Invalid phone number format. Use +254XXXXXXXXX"))
+        
+        return value
+    
+    def validate_name(self, value):
+        """Validate location name uniqueness per tenant."""
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError(_("Location name cannot be empty"))
+        return value
 
     def validate(self, data):
-        """validate the data before creating a new location."""
-        # Check if a location with the same name already exists for the tenant
-        tenant = self.context.get('tenant')  # get tenant from context
-        name = data.get('name')
-        if name and Location.objects.filter(name=name, tenant=tenant).exists():
-            raise serializers.ValidationError(_("Location with this name already exists for this tenant."))
-        #check if the contact number starts with a +254
-        contact_number = data.get('contact_number')
-        if contact_number and not contact_number.startswith("+254"):
-            raise serializers.ValidationError(_("Contact number must start with +254."))
-        # check if locaction should not have the same address
-        address = data.get('address')
-        if address and Location.objects.filter(address=address, tenant=tenant).exists():
-            raise serializers.ValidationError(_("Location with this address already exists for this tenant."))
+        """Enhanced validation for location data."""
+        tenant = self.context.get('tenant')
+        if not tenant:
+            raise serializers.ValidationError(_("Tenant context is required"))
+        
+        name = data.get('name', '').strip()
+        address = data.get('address', '').strip()
+        
+        # Check name uniqueness
+        if Location.objects.filter(name__iexact=name, tenant=tenant).exists():
+            raise serializers.ValidationError({
+                'name': _("Location with this name already exists for your account")
+            })
+        
+        # Check address uniqueness
+        if Location.objects.filter(address__iexact=address, tenant=tenant).exists():
+            raise serializers.ValidationError({
+                'address': _("Location with this address already exists for your account")
+            })
         
         return data
 
     def create(self, validated_data):
-        """
-        Create a new location instance.
-        """
+        """Create location with proper tenant assignment."""
+        tenant = self.context.get('tenant')
+        if not tenant:
+            raise serializers.ValidationError(_("Tenant is required"))
         
-        tenant = validated_data.pop('tenant')
-        location = Location.objects.create(tenant=tenant, **validated_data)
-        
-        return location
+        return Location.objects.create(tenant=tenant, **validated_data)
 
-#serializer to handle location update based on tenant
+# Enhanced location update serializer
 class LocationUpdateSerializer(serializers.ModelSerializer):
     """
-    Serializer for updating an existing location.
+    Serializer for updating an existing location with Flutter support.
+    
+    This serializer includes additional validation and read-only fields for mobile display.
+    
     """
-    name = serializers.CharField(max_length=255, required=False, allow_blank=True, help_text=_("Name of the location"))
-    address = serializers.CharField(max_length=255, required=False, allow_blank=True, help_text=_("Address of the location"))
-    latitude = serializers.FloatField(required=False, allow_null=True, help_text=_("Latitude of the location"))
-    longitude = serializers.FloatField(required=False, allow_null=True, help_text=_("Longitude of the location"))
-    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True, help_text=_("Contact number of the location"))
-    email = serializers.EmailField(required=False, allow_blank=True, help_text=_("Email address of the location"))
+    name = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    address = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    latitude = serializers.FloatField(required=False, min_value=-90.0, max_value=90.0)
+    longitude = serializers.FloatField(required=False, min_value=-180.0, max_value=180.0)
+    contact_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    
+    # Read-only display fields
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    total_services = serializers.SerializerMethodField(read_only=True)
+    total_location_services = serializers.SerializerMethodField(read_only=True)
+    last_updated = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Location
-        fields = ["name", "address", "latitude", "longitude", "contact_number", "email"]
-        read_only_fields = ["tenant", "created_at", "updated_at"]
+        fields = [
+            "id", "name", "address", "latitude", "longitude", 
+            "contact_number", "email", "tenant_name", "total_services",
+            "total_location_services", "last_updated", "updated_at"
+        ]
+        read_only_fields = ["id", "tenant", "created_at", "updated_at"]
+    
+    def get_total_services(self, obj):
+        return obj.tenant.services.count() if obj.tenant else 0
+    
+    def get_total_location_services(self, obj):
+        return obj.location_services.count()
+    
+    def get_last_updated(self, obj):
+        return obj.updated_at.strftime("%Y-%m-%d %H:%M") if obj.updated_at else None
+
+    def validate_contact_number(self, value):
+        """Validate Kenya phone number format."""
+        if value and not value.startswith("+254"):
+            raise serializers.ValidationError(_("Contact number must start with +254"))
+        return value
 
     def validate(self, data):
-        """ Validate the data before updating an existing location.
-        """
+        """Enhanced validation for updates."""
         instance = self.instance
         if not instance:
-            raise serializers.ValidationError(_("Location does not exist."))
-        if 'name' in data and Location.objects.filter(name=data['name'], tenant=instance.tenant).exclude(id=instance.id).exists():
-            raise serializers.ValidationError(_("Location with this name already exists for this tenant."))
+            raise serializers.ValidationError(_("Location instance is required"))
+        
+        # Check name uniqueness if being updated
+        name = data.get('name')
+        if name and name.strip():
+            name = name.strip()
+            if Location.objects.filter(
+                name__iexact=name, 
+                tenant=instance.tenant
+            ).exclude(id=instance.id).exists():
+                raise serializers.ValidationError({
+                    'name': _("Location with this name already exists for your account")
+                })
+        
+        # Check address uniqueness if being updated
+        address = data.get('address')
+        if address and address.strip():
+            address = address.strip()
+            if Location.objects.filter(
+                address__iexact=address, 
+                tenant=instance.tenant
+            ).exclude(id=instance.id).exists():
+                raise serializers.ValidationError({
+                    'address': _("Location with this address already exists for your account")
+                })
+        
         return data
-    def update(self, instance, validated_data):
-        """ Update an existing location instance.
-        """
-        instance.name = validated_data.get('name', instance.name)
-        instance.address = validated_data.get('address', instance.address)
-        instance.latitude = validated_data.get('latitude', instance.latitude)
-        instance.longitude = validated_data.get('longitude', instance.longitude)
-        instance.contact_number = validated_data.get('contact_number', instance.contact_number)
-        instance.email = validated_data.get('email', instance.email)
-        
-        instance.save()
-        
-        return instance
-    
-    
-#serializer to handle car wash services
+
+# Enhanced service serializer
 class ServiceSerializer(serializers.ModelSerializer):
     """
-    Serializer for car wash services.
+    Enhanced serializer for car wash services with mobile support.
     """
-    name = serializers.CharField(max_length=255, required=True, help_text=_("Name of the service"))
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=True, allow_null=True, help_text=_("Price of the service"))
-    description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service"))
+    name = serializers.CharField(
+        max_length=255, 
+        required=True,
+        error_messages={
+            'required': 'Service name is required',
+            'blank': 'Service name cannot be empty'
+        }
+    )
+    price = serializers.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        required=True,
+        min_value=Decimal('0.00'),
+        error_messages={
+            'required': 'Service price is required',
+            'min_value': 'Price cannot be negative'
+        }
+    )
+    description = serializers.CharField(
+        required=False, 
+        allow_blank=True, 
+        max_length=1000
+    )
+    
+    # Read-only fields for mobile display
+    tenant_name = serializers.CharField(source='tenant.name', read_only=True)
+    price_formatted = serializers.SerializerMethodField(read_only=True)
+    is_active = serializers.SerializerMethodField(read_only=True, default=True)
+    usage_count = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Service
-        fields = ["name", "price", "description"]
-        read_only_fields = ["id"]
+        fields = [
+            "id", "name", "price", "description", "tenant_name", 
+            "price_formatted", "is_active", "usage_count"
+        ]
+        read_only_fields = ["id", "tenant"]
+    
+    def get_price_formatted(self, obj):
+        """Format price for mobile display."""
+        return f"KSh {obj.price:,.2f}" if obj.price else "KSh 0.00"
+    
+    def get_is_active(self, obj):
+        """Check if service is used in any location services."""
+        return obj.location_services.exists()
+    
+    def get_usage_count(self, obj):
+        """Count how many location services use this service."""
+        return obj.location_services.count()
+
+    def validate_name(self, value):
+        """Validate service name."""
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError(_("Service name cannot be empty"))
+        return value
 
     def validate(self, data):
-        """ Validate the data before creating a new service.
-        """
-        tenant= self.context.get('tenant')  # get tenant from context
-        name = data.get('name')
-        if Service.objects.filter(name=name, tenant=tenant).exists():
-            raise serializers.ValidationError(_("Service with this name already exists."))
+        """Enhanced validation for service data."""
+        tenant = self.context.get('tenant')
+        if not tenant:
+            raise serializers.ValidationError(_("Tenant context is required"))
+        
+        name = data.get('name', '').strip()
+        
+        # Check name uniqueness per tenant
+        existing_query = Service.objects.filter(name__iexact=name, tenant=tenant)
+        if self.instance:
+            existing_query = existing_query.exclude(id=self.instance.id)
+        
+        if existing_query.exists():
+            raise serializers.ValidationError({
+                'name': _("Service with this name already exists for your account")
+            })
+        
         return data
+
     def create(self, validated_data):
-        """ Create a new service instance.
-        """
-        service = Service.objects.create(**validated_data)
-        return service
-  
-    
-    #class serializer to handle service update
-    
-class ServiceUpdateSerializer(serializers.ModelSerializer):
-    """
-    Serializer for updating an existing service.
-    """
-    name = serializers.CharField(max_length=255, required=False, allow_blank=True, help_text=_("Name of the service"))
-    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True, help_text=_("Price of the service"))
-    description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service"))
-
-    class Meta:
-        model = Service
-        fields = ["name", "price", "description"]
-        read_only_fields = ["id"]
-
-    def validate(self, data):
-        """ Validate the data before updating an existing service.
-        """
-        instance = self.instance
-        #check if the instance exists
-        if not instance:
-            raise serializers.ValidationError(_("Service does not exist."))
-#check if the name is being updated and if it already exists and but does not belong to the current instance
-        name = data.get('name')
-        if Service.objects.filter(name=name).exclude(id=instance.pk).exists():
+        """Create service with proper tenant assignment."""
+        tenant = self.context.get('tenant')
+        if not tenant:
+            raise serializers.ValidationError(_("Tenant is required"))
         
-            raise serializers.ValidationError(_("Service with this name already exists."))
-        return data
+        return Service.objects.create(tenant=tenant, **validated_data)
 
-    def update(self, instance, validated_data):
-        """ Update an existing service instance.
-        """
-        instance.name = validated_data.get('name', instance.name)
-        instance.price = validated_data.get('price', instance.price)
-        instance.description = validated_data.get('description', instance.description)
-        
-        instance.save()
-        
-        return instance
-
-
-# class serializer to handle creation of location service
+# Enhanced location service serializer
 class LocationServiceSerializer(serializers.ModelSerializer):
-    """to handle the creation of a location service package."""
+    """
+    Enhanced serializer for location service packages with comprehensive mobile support.
+    """
+    # Display fields (read-only)
+    location_name = serializers.CharField(source='location.name', read_only=True)
+    location_address = serializers.CharField(source='location.address', read_only=True)
+    service_names = serializers.SerializerMethodField(read_only=True)
+    service_details = ServiceSerializer(source='service', many=True, read_only=True)
+    price = serializers.SerializerMethodField(read_only=True)
+    price_formatted = serializers.SerializerMethodField(read_only=True)
+    duration_formatted = serializers.SerializerMethodField(read_only=True)
+    service_count = serializers.SerializerMethodField(read_only=True, help_text=_("Number of services in this package"))
+    created_at_formatted = serializers.SerializerMethodField(read_only=True)
     
-    location_name = serializers.CharField(source='location.name', read_only=True, help_text=_("Name of the location"))
-    service_names = serializers.SerializerMethodField()
-    service = serializers.PrimaryKeyRelatedField(
-        queryset=Service.objects.all(),
-        many=True,
-        help_text=_("List of services offered at the location")
-    )
+    # Write fields for creation/update
     location_id = serializers.PrimaryKeyRelatedField(
-        source='location',  # This is the key fix - map to the actual location field
-        queryset=Location.objects.all(),
-        help_text=_("Location where the service package is offered"),
+        source='location',
+        queryset=Location.objects.none(),# set in __init__
+        help_text=_("ID of the location for this service package"),
         write_only=True,
-        required=True
+        required=True,
+        error_messages={
+            'required': 'Location is required',
+            'does_not_exist': 'Selected location does not exist'
+        }
     )
-
-    service_details = ServiceSerializer(
+    service_ids = serializers.PrimaryKeyRelatedField(
         source='service',
+        queryset=Service.objects.all(),# set in __init__
+        write_only=True,
+        help_text=_("List of service IDs included in this package"),
         many=True,
-        read_only=True
+        required=True,
+        error_messages={
+            'required': 'At least one service must be selected',
+            'does_not_exist': 'One or more selected services do not exist'
+        }
     )
-    name = serializers.CharField(max_length=255, required=True, help_text=_("Name of the service package"))
-    duration = serializers.DurationField(help_text=_("Duration of the service package in minutes"))
-    description = serializers.CharField(required=False, allow_blank=True, help_text=_("Description of the service package"))
     
-    price = serializers.SerializerMethodField(help_text=_("Total price of the package based on the services included"), read_only=True)
+    # Core package fields
+    name = serializers.CharField(
+        max_length=255, 
+        required=True,
+        error_messages={
+            'required': 'Package name is required',
+            'blank': 'Package name cannot be empty'
+        }
+    )
+    duration = serializers.DurationField(
+        required=True,
+        error_messages={
+            'required': 'Duration is required',
+            'invalid': 'Enter a valid duration (HH:MM:SS format)'
+        }
+    )
+    description = serializers.CharField(
+        required=False, 
+        allow_blank=True, 
+        max_length=1000
+    )
 
     class Meta:
         model = LocationService
         fields = [
-            'id', 'location_name', 'location_id', 'service', 'name', 
-            'duration', 'description', 'price', 'service_names', 'service_details'
+            'id', 'name', 'description', 'duration', 'duration_formatted',
+            'location_id', 'location_name', 'location_address',
+            'service_ids', 'service_names', 'service_details', 'service_count',
+            'price', 'price_formatted', 'created_at', 'created_at_formatted'
         ]
         read_only_fields = ["id", 'created_at', "updated_at"]
         
-    #override the __init__ method to set query set for the service field only to the services that belong to the tenant
     def __init__(self, *args, **kwargs):
+        """Initialize with proper tenant filtering."""
         super().__init__(*args, **kwargs)
         request = self.context.get('request')
         if request and hasattr(request, 'user') and request.user.is_authenticated:
-            # Get the tenant from the authenticated user
             tenant = request.user
-            self.fields['service'].queryset = Service.objects.filter(tenant=tenant)
+            self.fields['service_ids'].queryset = Service.objects.filter(tenant=tenant)
             self.fields['location_id'].queryset = Location.objects.filter(tenant=tenant)
         else:
-            self.fields['service'].queryset = Service.objects.none()
+            self.fields['service_ids'].queryset = Service.objects.none()
             self.fields['location_id'].queryset = Location.objects.none()
 
     def get_service_names(self, obj):
-        """Get the names of the services offered at the location."""
-        return [service.name for service in obj.service.all()]
+        """Get comma-separated service names."""
+        return ", ".join([service.name for service in obj.service.all()])
     
     def get_price(self, obj):
-        """Calculate total price from all services in the package."""
-        if hasattr(obj, 'service'):
-            total_price = sum(service.price or 0 for service in obj.service.all())
-            return total_price
-        return 0.00
+        """Calculate total price from all services."""
+        return sum(service.price or Decimal('0.00') for service in obj.service.all())
     
+    def get_price_formatted(self, obj):
+        """Format total price for mobile display."""
+        total = self.get_price(obj)
+        return f"KSh {total:,.2f}"
+    
+    def get_duration_formatted(self, obj):
+        """Format duration for mobile display."""
+        if obj.duration:
+            total_seconds = int(obj.duration.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            if hours > 0:
+                return f"{hours}h {minutes}m"
+            else:
+                return f"{minutes}m"
+        return "0m"
+    
+    def get_service_count(self, obj):
+        """Get number of services in package."""
+        return obj.service.count()
+    
+    def get_created_at_formatted(self, obj):
+        """Format creation date for mobile display."""
+        return obj.created_at.strftime("%Y-%m-%d %H:%M") if obj.created_at else None
+
+    def validate_name(self, value):
+        """Validate package name."""
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError(_("Package name cannot be empty"))
+        return value
+
     def validate(self, data):
-        """Validate the data before creating a new location service package."""
-        request = self.context.get('request')  # get request from context
-        tenant = request.user if request.user.is_authenticated else None
+        """Enhanced validation for location service packages."""
+        request = self.context.get('request')
+        tenant = request.user if request and request.user.is_authenticated else None
         
         if not tenant:
-            raise serializers.ValidationError(_("Authentication required."))
-        
-        # Get the selected location from the data
-        location = data.get('location')  # This will be the Location object now
-        if not location:
-            raise serializers.ValidationError({
-                'location_id': _("Location is required.")
-            })
+            raise serializers.ValidationError(_("Authentication required"))
         
         # Validate location belongs to tenant
-        if location.tenant != tenant:
+        location = data.get('location')
+        if location and location.tenant != tenant:
             raise serializers.ValidationError({
-                'location_id': _("Selected location does not belong to your tenant.")
-            })
-        
-        # Validate name
-        name = data.get('name', '')
-        if not name.strip():
-            raise serializers.ValidationError({
-                'name': _("Name is required.")
-            })
-        
-        # Check for duplicate names within the same location
-        existing_query = LocationService.objects.filter(
-            name=name, 
-            location=location
-        )
-        
-        # Exclude current instance during updates
-        if self.instance:
-            existing_query = existing_query.exclude(id=self.instance.id)
-            
-        if existing_query.exists():
-            raise serializers.ValidationError({
-                'name': _("Location service with this name already exists for this location.")
+                'location_id': _("Selected location does not belong to your account")
             })
         
         # Validate services belong to tenant
         services = data.get('service', [])
         if not services:
             raise serializers.ValidationError({
-                'service': _("At least one service must be selected.")
+                'service': _("At least one service must be selected")
             })
-            
+        
         for service in services:
             if service.tenant != tenant:
                 raise serializers.ValidationError({
-                    'service': _("Service '{}' does not belong to your tenant.").format(service.name)
+                    'service': _("All services must belong to your account")
+                })
+        
+        # Check package name uniqueness per location
+        name = data.get('name', '').strip()
+        if name and location:
+            existing_query = LocationService.objects.filter(
+                name__iexact=name, 
+                location=location
+            )
+            if self.instance:
+                existing_query = existing_query.exclude(id=self.instance.id)
+            
+            if existing_query.exists():
+                raise serializers.ValidationError({
+                    'name': _("Package with this name already exists for this location")
                 })
         
         return data
 
     def create(self, validated_data):
-        """Create a new location service package instance."""
-        services = validated_data.pop('service')
+        """Create location service package."""
+        services = validated_data.pop('service', [])
         
-    
-        location_service = LocationService.objects.create(**validated_data)
-        location_service.service.set(services)
-        return location_service
+        if not services:
+            raise serializers.ValidationError(_("At least one service must be selected"))
+        
+        try:
+            
+            location_service = LocationService.objects.create(**validated_data)
+            #setting many to many relationship
+            location_service.service.set(services)
+            return location_service
+        except Exception as e:
+            raise serializers.ValidationError({
+                'non-field_errors': [f"Error creating location services: {str(e)}"]
+            })
     
     def update(self, instance, validated_data):
-        """Update an existing location service package instance."""
+        """Update location service package."""
         services = validated_data.pop('service', None)
         
         # Update basic fields
-        instance.name = validated_data.get('name', instance.name)
-        instance.duration = validated_data.get('duration', instance.duration)
-        instance.description = validated_data.get('description', instance.description)
-        
-        # Update location if provided
-        if 'location' in validated_data:
-            instance.location = validated_data.get('location')
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
         
         instance.save()
         

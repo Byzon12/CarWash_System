@@ -1,10 +1,11 @@
 from django.urls import path
-from .views import LocationCreateView, LocationUpdateView,LocationDeleteView, ServiceCreateView, ServiceUpdateView, ServiceDeleteView, ServiceDeleteView, LocationServiceCreateView, LocationServiceDeleteView, LocationServiceListView,LocationServiceDetailView, LocationListView,ServiceListView
+from .views import LocationActivateView, LocationCreateView, LocationUpdateView,LocationDeleteView, ServiceCreateView, ServiceUpdateView, ServiceDeleteView, ServiceDeleteView, LocationServiceCreateView, LocationServiceDeleteView, LocationServiceListView,LocationServiceDetailView, LocationListView,ServiceListView, LocationActivateView
 
 urlpatterns = [
     path('create/', LocationCreateView.as_view(), name='location-create'),
     path('update/<int:pk>/', LocationUpdateView.as_view(), name='location-update'),
     path('delete/<int:pk>/', LocationDeleteView.as_view(), name='location-delete'),
+    path('activate/<int:pk>/', LocationActivateView.as_view(), name='location-activate'),
     path('list/', LocationListView.as_view(), name='location-list'),
 
    # path('list/', LocationListView.as_view(), name='location-list'),
