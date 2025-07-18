@@ -33,12 +33,13 @@ urlpatterns = [
     
     # Enhanced Walk-in Task Management URLs
     path('walkin-tasks/', WalkInTaskListView.as_view(), name='walkin_task_list'),
-    path('walkin-tasks/create/', WalkInTaskCreateView.as_view(), name='walkin_task_create'),
+  #  path('walkin-tasks/create/', WalkInTaskCreateView.as_view(), name='walkin_task_create'),
     path('walkin-tasks/<int:pk>/', WalkInTaskDetailView.as_view(), name='walkin_task_detail'),
     path('walkin-tasks/<int:pk>/update/', WalkInTaskUpdateView.as_view(), name='walkin_task_update'),
     path('walkin-tasks/<int:pk>/status/', WalkInTaskStatusUpdateView.as_view(), name='walkin_task_status_update'),
     path('walkin-tasks/bulk-update/', WalkInTaskBulkUpdateView.as_view(), name='walkin_task_bulk_update'),
     path('walkin-tasks/templates/', WalkInTaskTemplateListView.as_view(), name='walkin_task_templates'),
+    
     
     # Walk-in Payment URLs
     path('walkin-payments/', WalkInPaymentListView.as_view(), name='walkin_payment_list'),

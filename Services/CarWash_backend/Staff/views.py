@@ -1367,7 +1367,7 @@ class WalkInMpesaPaymentInitiateView(generics.CreateAPIView):
                 # Extract validated data
                 walkin_customer_id = serializer.validated_data['walkin_customer_id']
                 phone_number = serializer.validated_data['phone_number']
-                amount = serializer.validated_data['amount']
+               
                 description = serializer.validated_data['description']
                 
                 # Verify staff has access to this customer
@@ -1386,7 +1386,7 @@ class WalkInMpesaPaymentInitiateView(generics.CreateAPIView):
                 response = walkin_mpesa_service.initiate_walkin_payment(
                     walkin_customer_id=walkin_customer_id,
                     phone_number=phone_number,
-                    amount=amount,
+                    
                     description=description
                 )
                 
@@ -1464,7 +1464,7 @@ class WalkInPaymentStatusView(generics.RetrieveAPIView):
                     'data': {
                         'payment_id': payment.id,
                         'status': payment.status,
-                        'amount': payment.amount,
+                      #  'amount': payment.amount,
                         'amount_formatted': payment.amount_formatted,
                         'payment_method': payment.payment_method,
                         'transaction_id': payment.transaction_id,
@@ -1483,7 +1483,7 @@ class WalkInPaymentStatusView(generics.RetrieveAPIView):
                     'data': {
                         'payment_id': payment.id,
                         'status': payment.status,
-                        'amount': payment.amount,
+                   #     'amount': payment.amount,
                         'amount_formatted': payment.amount_formatted,
                         'payment_method': payment.payment_method,
                         'transaction_id': payment.transaction_id,
@@ -1704,6 +1704,3 @@ class WalkInCustomerViewSet(viewsets.ModelViewSet):
             'message': 'Service completed successfully',
             'data': WalkInCustomerSerializer(customer).data
         })
-
-
-

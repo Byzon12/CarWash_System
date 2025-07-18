@@ -348,7 +348,7 @@ class WalkInCustomerAdmin(admin.ModelAdmin):
     """
     Admin interface for WalkInCustomer model.
     """
-    list_display = ('name', 'location', 'email', 'created_at')
+    list_display = ('name', 'location', 'id', 'email', 'created_at')
     search_fields = ('name', 'phone_number', 'email')
     
     def has_add_permission(self, request):

@@ -137,6 +137,7 @@ class WalkInCustomer(models.Model):
     ]
     
     # Basic customer info
+    id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=200, help_text="Customer's name")
     phone_number = models.CharField(max_length=20, blank=True, null=True, help_text="Customer's phone number")
     email = models.EmailField(blank=True, null=True, help_text="Customer's email")

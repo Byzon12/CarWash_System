@@ -969,11 +969,7 @@ class MpesaPaymentInitiateSerializer(serializers.Serializer):
             max_length=20,
             help_text="Customer's phone number in format +254XXXXXXXXX"
         )
-        amount = serializers.DecimalField(
-            max_digits=10,
-            decimal_places=2,
-            help_text="Payment amount"
-        )
+        
         description = serializers.CharField(
             max_length=200,
             default="Walk-in Car Wash Service",
@@ -994,9 +990,12 @@ class MpesaPaymentInitiateSerializer(serializers.Serializer):
         def validate_walkin_customer_id(self, value):
             """Validate that walk-in customer exists and can accept payments."""
             try:
-                customer = WalkInCustomer.objects.get(id=value)
+                from Staff.models import WalkInCustomer
+                customer = WalkInCustomer.objects.select_related('location_service').get(id=value)
                 if customer.payment_status == 'paid':
                     raise serializers.ValidationError("Payment already completed for this customer")
+                if not customer.location_service:
+                    raise serializers.ValidationError("Walk-in customer does not have a valid service")
                 return value
             except WalkInCustomer.DoesNotExist:
                 raise serializers.ValidationError("Walk-in customer not found")
