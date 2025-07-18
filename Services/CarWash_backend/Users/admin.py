@@ -1,13 +1,13 @@
-
 from django.contrib import admin
 from Tenant.models import TenantProfile,Tenant, Task
 from booking.models import booking
 from Staff.models import StaffProfile,StaffRole
 from Location.models import Location, Service, LocationService
-from Staff.models import StaffProfile, StaffRole,Staff
+from Staff.models import StaffProfile, StaffRole, Staff, WalkInCustomer, WalkInTask, WalkInPayment
 
 from .models import CustomerProfile, AuditLog
 from Tenant.models import CarCheckIn
+
 
 @admin.register(CustomerProfile)
 class CustomerProfileAdmin(admin.ModelAdmin):
@@ -341,3 +341,84 @@ class CarCheckInAdmin(admin.ModelAdmin):
         Disable the delete permission for CarCheckIn.
         """
         return True
+    
+    
+@admin.register(WalkInCustomer)
+class WalkInCustomerAdmin(admin.ModelAdmin):
+    """
+    Admin interface for WalkInCustomer model.
+    """
+    list_display = ('name', 'location', 'email', 'created_at')
+    search_fields = ('name', 'phone_number', 'email')
+    
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for WalkInCustomer.
+        """
+        return True
+    
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for WalkInCustomer.
+        """
+        return True
+    
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for WalkInCustomer.
+        """
+        return True
+    
+@admin.register(WalkInTask)
+class WalkInTaskAdmin(admin.ModelAdmin):
+    """
+    Admin interface for WalkInTask model.
+    """
+    list_display = ('walkin_customer', 'assigned_to', 'status', 'task_name')
+    search_fields = ('status','task_name')
+    list_filter = ('status', 'assigned_to')
+
+    def has_add_permission(self, request):
+        """
+        Disable the add permission for WalkInTask.
+        """
+        return True
+
+    def has_change_permission(self, request, obj=None):
+        """
+        Disable the change permission for WalkInTask.
+        """
+        return True
+
+    def has_delete_permission(self, request, obj=None):
+        """
+        Disable the delete permission for WalkInTask.
+        """
+        return True
+    
+@admin.register(WalkInPayment)
+class WalkInPaymentAdmin(admin.ModelAdmin):
+    """
+    Admin interface for WalkInPayment model.
+    """
+    list_display = ('walkin_customer', 'amount_formatted', 'payment_method', 'status', 'created_at')
+    list_filter = ('payment_method', 'status', 'created_at')
+    search_fields = ('walkin_customer__name', 'payment_reference', 'transaction_id')
+    readonly_fields = ('payment_reference', 'checkout_request_id', 'merchant_request_id', 'transaction_id')
+    
+    def amount_formatted(self, obj):
+        """Display formatted amount."""
+        return obj.amount_formatted
+    amount_formatted.short_description = 'Amount'
+    
+    def has_add_permission(self, request):
+        """Disable the add permission for WalkInPayment."""
+        return False
+    
+    def has_change_permission(self, request, obj=None):
+        """Enable limited change permission for WalkInPayment."""
+        return True
+    
+    def has_delete_permission(self, request, obj=None):
+        """Disable the delete permission for WalkInPayment."""
+        return False
