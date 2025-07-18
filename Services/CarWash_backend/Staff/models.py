@@ -126,7 +126,7 @@ class StaffProfile(models.Model):
     def __str__(self):
         return f"{self.full_name} ({self.username})"
 
-# New Model for Walk-in Customers
+# New Model for Walk-in Customers with automatic task creation
 class WalkInCustomer(models.Model):
     """Model for managing walk-in customers who don't have bookings."""
     CUSTOMER_STATUS_CHOICES = [
@@ -190,6 +190,39 @@ class WalkInCustomer(models.Model):
         """Get formatted total amount."""
         return f"KSh {self.total_amount:,.2f}" if self.total_amount else "KSh 0.00"
     
+    @property
+    def primary_task(self):
+        """Get the primary task for this customer."""
+        return self.tasks.first()
+    
+    def create_default_task(self):
+        """Create a default task for this walk-in customer."""
+        if not self.tasks.exists():
+            # Import here to avoid circular import
+            from .models import WalkInTask
+            
+            task = WalkInTask.objects.create(
+                walkin_customer=self,
+                assigned_to=self.assigned_staff,
+                created_by=self.created_by,
+                task_name=f"{self.location_service.name} - {self.name}",
+                description=f"Service: {self.location_service.name} for {self.name} ({self.vehicle_plate})",
+                estimated_duration=self.estimated_duration,
+                final_price=self.total_amount,
+                priority='medium'
+            )
+            return task
+        return self.tasks.first()
+    
+    def save(self, *args, **kwargs):
+        """Override save to create default task automatically."""
+        is_new = self.pk is None
+        super().save(*args, **kwargs)
+        
+        # Create default task for new customers
+        if is_new and self.assigned_staff:
+            self.create_default_task()
+    
     class Meta:
         ordering = ['-created_at']
         verbose_name = "Walk-in Customer"
@@ -239,8 +272,6 @@ class WalkInTask(models.Model):
     approved_by = models.ForeignKey(StaffProfile, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_walkin_tasks')
     approved_at = models.DateTimeField(null=True, blank=True)
     
-    # Dependencies and requirements
-   
     # Additional tracking
     notes = models.TextField(blank=True, null=True)
     internal_notes = models.TextField(blank=True, null=True, help_text="Internal staff notes")
@@ -257,9 +288,7 @@ class WalkInTask(models.Model):
     
     @property
     def can_start(self):
-        """Check if task can be started (prerequisite completed)."""
-        if self.prerequisite_task:
-            return self.prerequisite_task.status == 'completed'
+        """Check if task can be started."""
         return True
     
     @property
@@ -316,6 +345,13 @@ class WalkInTask(models.Model):
             self.status = 'in_progress'
             self.started_at = timezone.now()
             self.save(update_fields=['status', 'started_at'])
+            
+            # Update customer status if this is the primary task
+            if self.walkin_customer.primary_task == self:
+                self.walkin_customer.status = 'in_service'
+                self.walkin_customer.service_started_at = timezone.now()
+                self.walkin_customer.save(update_fields=['status', 'service_started_at'])
+            
             return True
         return False
     
@@ -332,9 +368,56 @@ class WalkInTask(models.Model):
                 self.quality_rating = quality_rating
                 
             self.calculate_actual_duration()
+            
+            # Update customer status if this is the primary task
+            if self.walkin_customer.primary_task == self:
+                self.walkin_customer.status = 'completed'
+                self.walkin_customer.service_completed_at = timezone.now()
+                self.walkin_customer.save(update_fields=['status', 'service_completed_at'])
+            
             self.save()
             return True
         return False
+    
+    def pause_task(self):
+        """Pause the task."""
+        if self.status == 'in_progress':
+            self.status = 'paused'
+            self.paused_at = timezone.now()
+            self.save(update_fields=['status', 'paused_at'])
+            return True
+        return False
+    
+    def resume_task(self):
+        """Resume a paused task."""
+        if self.status == 'paused':
+            self.status = 'in_progress'
+            self.paused_at = None
+            self.save(update_fields=['status', 'paused_at'])
+            return True
+        return False
+    
+    def cancel_task(self, reason=None):
+        """Cancel the task."""
+        if self.status not in ['completed', 'cancelled']:
+            self.status = 'cancelled'
+            if reason:
+                self.internal_notes = f"Cancelled: {reason}"
+            self.save(update_fields=['status', 'internal_notes'])
+            return True
+        return False
+    
+    def clean(self):
+        """Validate the task."""
+        super().clean()
+        
+        # Validate quality rating
+        if self.quality_rating is not None and (self.quality_rating < 1 or self.quality_rating > 5):
+            raise ValidationError("Quality rating must be between 1 and 5")
+        
+        # Validate progress percentage
+        if self.progress_percentage < 0 or self.progress_percentage > 100:
+            raise ValidationError("Progress percentage must be between 0 and 100")
     
     class Meta:
         ordering = ['-created_at']

@@ -456,11 +456,16 @@ class WalkInCustomerSerializer(serializers.ModelSerializer):
     arrived_at_formatted = serializers.SerializerMethodField(read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     
+    # Task information (auto-created task details)
+    primary_task_id = serializers.SerializerMethodField(read_only=True)
+    primary_task_status = serializers.SerializerMethodField(read_only=True)
+    primary_task_progress = serializers.SerializerMethodField(read_only=True)
+    has_task = serializers.SerializerMethodField(read_only=True)
+    
     # Write fields
     location_id = serializers.PrimaryKeyRelatedField(
         source='location',
         queryset=Location.objects.none(),  # Set in __init__
-       
         required=True
     )
     location_service_id = serializers.PrimaryKeyRelatedField(
@@ -485,6 +490,7 @@ class WalkInCustomerSerializer(serializers.ModelSerializer):
             'total_amount', 'total_amount_formatted', 'payment_status', 'notes',
             'arrived_at', 'arrived_at_formatted', 'service_started_at', 'service_completed_at',
             'waiting_time_formatted', 'service_duration_formatted', 'created_by_name',
+            'primary_task_id', 'primary_task_status', 'primary_task_progress', 'has_task',
             'created_at', 'updated_at'
         ]
         read_only_fields = [
@@ -555,6 +561,25 @@ class WalkInCustomerSerializer(serializers.ModelSerializer):
         """Get formatted arrival time."""
         return obj.arrived_at.strftime("%Y-%m-%d %H:%M") if obj.arrived_at else None
     
+    def get_primary_task_id(self, obj):
+        """Get primary task ID."""
+        primary_task = obj.primary_task
+        return primary_task.id if primary_task else None
+    
+    def get_primary_task_status(self, obj):
+        """Get primary task status."""
+        primary_task = obj.primary_task
+        return primary_task.status if primary_task else None
+    
+    def get_primary_task_progress(self, obj):
+        """Get primary task progress."""
+        primary_task = obj.primary_task
+        return primary_task.progress_percentage if primary_task else 0
+    
+    def get_has_task(self, obj):
+        """Check if customer has a task."""
+        return obj.tasks.exists()
+    
     def validate_phone_number(self, value):
         """Validate phone number format."""
         if value and not value.startswith("+254"):
@@ -575,7 +600,7 @@ class WalkInCustomerSerializer(serializers.ModelSerializer):
         return data
     
     def create(self, validated_data):
-        """Create walk-in customer with proper staff assignment."""
+        """Create walk-in customer with automatic task creation."""
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             try:
@@ -589,11 +614,69 @@ class WalkInCustomerSerializer(serializers.ModelSerializer):
             except StaffProfile.DoesNotExist:
                 pass
         
-        return super().create(validated_data)
+        # Create the customer (this will automatically create a task via the model's save method)
+        instance = super().create(validated_data)
+        
+        # Ensure task was created (fallback)
+        if not instance.tasks.exists():
+            instance.create_default_task()
+        
+        return instance
+    
+    def update(self, instance, validated_data):
+        """Update walk-in customer and sync with primary task."""
+        old_status = instance.status
+        updated_instance = super().update(instance, validated_data)
+        
+        # Update primary task status based on customer status
+        primary_task = updated_instance.primary_task
+        if primary_task:
+            new_status = updated_instance.status
+            
+            # Sync task status with customer status
+            if old_status != new_status:
+                if new_status == 'in_service' and primary_task.status == 'pending':
+                    primary_task.status = 'in_progress'
+                    primary_task.started_at = timezone.now()
+                    primary_task.save()
+                elif new_status == 'completed' and primary_task.status in ['pending', 'in_progress']:
+                    primary_task.status = 'completed'
+                    primary_task.completed_at = timezone.now()
+                    primary_task.progress_percentage = 100
+                    if primary_task.started_at:
+                        primary_task.actual_duration = timezone.now() - primary_task.started_at
+                    primary_task.save()
+        
+        return updated_instance
+    
+    def to_representation(self, instance):
+        """Enhanced representation with task information."""
+        data = super().to_representation(instance)
+        
+        # Add comprehensive task information
+        primary_task = instance.primary_task
+        if primary_task:
+            data['task_details'] = {
+                'id': primary_task.id,
+                'name': primary_task.task_name,
+                'status': primary_task.status,
+                'status_display': primary_task.get_status_display(),
+                'progress': primary_task.progress_percentage,
+                'started_at': primary_task.started_at.strftime("%Y-%m-%d %H:%M") if primary_task.started_at else None,
+                'completed_at': primary_task.completed_at.strftime("%Y-%m-%d %H:%M") if primary_task.completed_at else None,
+                'estimated_duration': primary_task.estimated_duration_formatted,
+                'actual_duration': primary_task.duration_formatted,
+                'can_start': primary_task.can_start,
+                'is_overdue': primary_task.is_overdue,
+            }
+        else:
+            data['task_details'] = None
+        
+        return data
 
 # Enhanced Walk-in Task Serializer
 class WalkInTaskSerializer(serializers.ModelSerializer):
-    """Enhanced serializer for walk-in customer tasks."""
+    """Enhanced serializer for walk-in customer tasks with automatic assignment."""
     # Read-only display fields
     customer_name = serializers.CharField(source='walkin_customer.name', read_only=True)
     customer_vehicle = serializers.CharField(source='walkin_customer.vehicle_plate', read_only=True)
@@ -601,7 +684,6 @@ class WalkInTaskSerializer(serializers.ModelSerializer):
     assigned_staff_name = serializers.CharField(source='assigned_to.full_name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.full_name', read_only=True)
     approved_by_name = serializers.CharField(source='approved_by.full_name', read_only=True)
- 
     
     # Formatted fields
     duration_formatted = serializers.SerializerMethodField(read_only=True)
@@ -618,59 +700,24 @@ class WalkInTaskSerializer(serializers.ModelSerializer):
     can_start = serializers.BooleanField(read_only=True)
     is_overdue = serializers.BooleanField(read_only=True)
     
-    # Write fields with validation
-    assigned_to_id = serializers.PrimaryKeyRelatedField(
-        source='assigned_to',
-        queryset=StaffProfile.objects.none(),  # Set in __init__
-        write_only=True,
-        required=False
-    )
-  
     class Meta:
         model = WalkInTask
         fields = [
             'id', 'walkin_customer', 'customer_name', 'customer_vehicle', 'customer_phone',
-            'assigned_to', 'assigned_to_id', 'assigned_staff_name', 'created_by', 'created_by_name',
+            'assigned_to', 'assigned_staff_name', 'created_by', 'created_by_name',
             'task_name', 'description', 'status', 'status_display', 'priority', 'priority_display',
             'started_at', 'started_at_formatted', 'completed_at', 'completed_at_formatted',
             'paused_at', 'estimated_duration', 'estimated_duration_formatted',
             'actual_duration', 'actual_duration_formatted', 'duration_formatted',
             'progress_percentage', 'requires_approval', 'approved_by', 'approved_by_name',
-            'approved_at',
-             'notes', 'internal_notes', 'quality_rating', 'customer_feedback',
+            'approved_at', 'notes', 'internal_notes', 'quality_rating', 'customer_feedback',
             'final_price', 'final_price_formatted', 'discount_applied', 'can_start', 'is_overdue',
             'created_at', 'created_at_formatted', 'updated_at'
         ]
         read_only_fields = [
-            'id', 'created_by', 'started_at', 'completed_at', 'paused_at', 'actual_duration',
-            'approved_by', 'approved_at', 'created_at', 'updated_at'
+            'id', 'assigned_to', 'created_by', 'started_at', 'completed_at', 'paused_at', 
+            'actual_duration', 'approved_by', 'approved_at', 'created_at', 'updated_at'
         ]
-    
-    def __init__(self, *args, **kwargs):
-        """Initialize with proper filtering based on staff context."""
-        super().__init__(*args, **kwargs)
-        request = self.context.get('request')
-        if request and hasattr(request, 'user'):
-            try:
-                staff_profile = StaffProfile.objects.get(staff=request.user)
-                tenant = staff_profile.tenant
-                location = staff_profile.location
-                
-                # Filter staff by tenant/location
-                if location:
-                    self.fields['assigned_to_id'].queryset = StaffProfile.objects.filter(
-                        location=location, is_active=True
-                    )
-                else:
-                    self.fields['assigned_to_id'].queryset = StaffProfile.objects.filter(
-                        tenant=tenant, is_active=True
-                    )
-                
-                
-               
-            except (StaffProfile.DoesNotExist, AttributeError):
-                self.fields['assigned_to_id'].queryset = StaffProfile.objects.none()
-                
     
     def get_duration_formatted(self, obj):
         """Get formatted actual duration."""
@@ -733,46 +780,69 @@ class WalkInTaskSerializer(serializers.ModelSerializer):
                 )
         return value
     
-    def validate(self, data):
-        """Enhanced validation for walk-in tasks."""
-        # Validate prerequisite task
-    
-        # Validate staff assignment (same location/tenant)
-        assigned_to = data.get('assigned_to')
-        if assigned_to:
-            request = self.context.get('request')
-            if request and hasattr(request, 'user'):
-                try:
-                    staff_profile = StaffProfile.objects.get(staff=request.user)
-                    if (staff_profile.location and 
-                        assigned_to.location and 
-                        assigned_to.location != staff_profile.location):
-                        raise serializers.ValidationError({
-                            'assigned_to': 'Cannot assign task to staff from different location'
-                        })
-                    elif assigned_to.tenant != staff_profile.tenant:
-                        raise serializers.ValidationError({
-                            'assigned_to': 'Cannot assign task to staff from different tenant'
-                        })
-                except StaffProfile.DoesNotExist:
-                    pass
-        
-        return data
-    
-    def create(self, validated_data):
-        """Create task with proper staff assignment."""
+    def validate_walkin_customer(self, value):
+        """Validate walk-in customer belongs to same tenant/location."""
         request = self.context.get('request')
         if request and hasattr(request, 'user'):
             try:
                 staff_profile = StaffProfile.objects.get(staff=request.user)
+                
+                # Check if customer belongs to same location/tenant
+                if staff_profile.location and value.location != staff_profile.location:
+                    raise serializers.ValidationError(
+                        "Cannot create task for customer from different location"
+                    )
+                elif value.location.tenant != staff_profile.tenant:
+                    raise serializers.ValidationError(
+                        "Cannot create task for customer from different tenant"
+                    )
+            except StaffProfile.DoesNotExist:
+                raise serializers.ValidationError("Staff profile not found")
+        
+        return value
+    
+    def validate(self, data):
+        """Enhanced validation for walk-in tasks."""
+        # Validate that walk-in customer exists and is not completed
+        walkin_customer = data.get('walkin_customer')
+        if walkin_customer and walkin_customer.status == 'completed':
+            raise serializers.ValidationError({
+                'walkin_customer': 'Cannot create task for completed customer'
+            })
+        
+        # Auto-set final price from customer's service if not provided
+        if walkin_customer and not data.get('final_price'):
+            data['final_price'] = walkin_customer.total_amount
+        
+        # Auto-set estimated duration from customer's service if not provided
+        if walkin_customer and not data.get('estimated_duration'):
+            data['estimated_duration'] = walkin_customer.estimated_duration
+        
+        return data
+    
+    def create(self, validated_data):
+        """Create task with automatic assignment to logged-in staff."""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user'):
+            try:
+                staff_profile = StaffProfile.objects.get(staff=request.user)
+                
+                # Automatically assign to logged-in staff
+                validated_data['assigned_to'] = staff_profile
                 validated_data['created_by'] = staff_profile
                 
-                # Auto-assign to creator if no staff assigned
-                if not validated_data.get('assigned_to'):
-                    validated_data['assigned_to'] = staff_profile
-                    
+                # Set default task name if not provided
+                if not validated_data.get('task_name'):
+                    customer = validated_data.get('walkin_customer')
+                    if customer and customer.location_service:
+                        validated_data['task_name'] = f"{customer.location_service.name} - {customer.name}"
+                    else:
+                        validated_data['task_name'] = f"Walk-in Service - {customer.name if customer else 'Unknown'}"
+                
             except StaffProfile.DoesNotExist:
-                pass
+                raise serializers.ValidationError("Staff profile not found")
+        else:
+            raise serializers.ValidationError("Authentication required")
         
         return super().create(validated_data)
     
@@ -784,12 +854,25 @@ class WalkInTaskSerializer(serializers.ModelSerializer):
         # Handle status-based timing
         if old_status == 'pending' and new_status == 'in_progress':
             instance.started_at = timezone.now()
+            # Update customer status
+            if instance.walkin_customer.status == 'waiting':
+                instance.walkin_customer.status = 'in_service'
+                instance.walkin_customer.service_started_at = timezone.now()
+                instance.walkin_customer.save()
+                
         elif old_status == 'in_progress' and new_status == 'completed':
             instance.completed_at = timezone.now()
             instance.progress_percentage = 100
+            
             # Calculate actual duration
             if instance.started_at:
                 instance.actual_duration = timezone.now() - instance.started_at
+            
+            # Update customer status
+            instance.walkin_customer.status = 'completed'
+            instance.walkin_customer.service_completed_at = timezone.now()
+            instance.walkin_customer.save()
+            
         elif old_status == 'in_progress' and new_status == 'paused':
             instance.paused_at = timezone.now()
         
@@ -925,5 +1008,3 @@ class PaymentStatusSerializer(serializers.Serializer):
         message = serializers.CharField()
         transaction_id = serializers.CharField(required=False)
         amount_paid = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
-    
-    # ...existing code...

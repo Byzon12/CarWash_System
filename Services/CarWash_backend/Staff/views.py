@@ -1,7 +1,9 @@
 from profile import Profile
 from tarfile import data_filter
 from django.shortcuts import render
-from rest_framework import generics, permissions, status
+from django.utils import timezone
+from rest_framework import generics, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django.utils.translation import gettext_lazy as _
@@ -363,39 +365,63 @@ class StaffUpdateTaskStatusView(generics.UpdateAPIView):
 
 # Walk-in Customer Management Views
 class WalkInCustomerCreateView(generics.CreateAPIView):
-    """Create new walk-in customers for on-site operations."""
+    """Create walk-in customer with automatic task creation."""
     serializer_class = WalkInCustomerSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [StaffAuthentication]
     
+    def get_queryset(self):
+        """Filter queryset based on staff location/tenant."""
+        try:
+            staff_profile = StaffProfile.objects.get(staff=self.request.user)
+            if staff_profile.location:
+                return WalkInCustomer.objects.filter(
+                    location=staff_profile.location
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+            else:
+                return WalkInCustomer.objects.filter(
+                    location__tenant=staff_profile.tenant
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+        except StaffProfile.DoesNotExist:
+            return WalkInCustomer.objects.none()
+    
     def create(self, request, *args, **kwargs):
-        """Handle walk-in customer creation with enhanced response."""
+        """Create walk-in customer with automatic task creation."""
         try:
             with transaction.atomic():
                 serializer = self.get_serializer(data=request.data)
                 if serializer.is_valid():
+                    # Create customer (task will be auto-created via model's save method)
                     customer = serializer.save()
+                    
+                    # Ensure task was created
+                    task_created = customer.tasks.exists()
+                    primary_task = customer.primary_task
+                    
                     return Response({
                         'success': True,
-                        'message': 'Walk-in customer registered successfully',
-                        'data': serializer.data
+                        'message': 'Walk-in customer created successfully with automatic task',
+                        'data': serializer.data,
+                        'task_created': task_created,
+                        'task_id': primary_task.id if primary_task else None,
+                        'task_status': primary_task.status if primary_task else None
                     }, status=status.HTTP_201_CREATED)
                 
                 return Response({
                     'success': False,
-                    'message': 'Walk-in customer registration failed',
+                    'message': 'Walk-in customer creation failed',
                     'errors': serializer.errors
                 }, status=status.HTTP_400_BAD_REQUEST)
         
         except Exception as e:
             return Response({
                 'success': False,
-                'message': 'An error occurred while registering walk-in customer',
+                'message': 'An error occurred while creating walk-in customer',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class WalkInCustomerListView(generics.ListAPIView):
-    """List walk-in customers with filtering options."""
+    """List walk-in customers with enhanced filtering and task information."""
     serializer_class = WalkInCustomerSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [StaffAuthentication]
@@ -411,9 +437,13 @@ class WalkInCustomerListView(generics.ListAPIView):
         
         # Filter by staff location if available, otherwise by tenant
         if staff_profile.location:
-            queryset = WalkInCustomer.objects.filter(location=staff_profile.location)
+            queryset = WalkInCustomer.objects.filter(
+                location=staff_profile.location
+            ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
         else:
-            queryset = WalkInCustomer.objects.filter(location__tenant=staff_profile.tenant)
+            queryset = WalkInCustomer.objects.filter(
+                location__tenant=staff_profile.tenant
+            ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
         
         # Additional filters
         status_filter = self.request.query_params.get('status')
@@ -426,19 +456,56 @@ class WalkInCustomerListView(generics.ListAPIView):
             today = timezone.now().date()
             queryset = queryset.filter(arrived_at__date=today)
         
+        # Filter by assigned staff
+        assigned_staff_filter = self.request.query_params.get('assigned_staff')
+        if assigned_staff_filter:
+            queryset = queryset.filter(assigned_staff_id=assigned_staff_filter)
+        
+        # Filter by payment status
+        payment_status_filter = self.request.query_params.get('payment_status')
+        if payment_status_filter:
+            queryset = queryset.filter(payment_status=payment_status_filter)
+        
         return queryset.order_by('-arrived_at')
     
     def list(self, request, *args, **kwargs):
-        """Handle walk-in customer listing with enhanced response."""
+        """Handle walk-in customer listing with enhanced response and statistics."""
         try:
             queryset = self.get_queryset()
             serializer = self.get_serializer(queryset, many=True)
+            
+            # Calculate statistics
+            total_customers = queryset.count()
+            waiting_customers = queryset.filter(status='waiting').count()
+            in_service_customers = queryset.filter(status='in_service').count()
+            completed_customers = queryset.filter(status='completed').count()
+            
+            # Task statistics
+            customers_with_tasks = sum(1 for customer in queryset if customer.tasks.exists())
+            
+            # Today's statistics
+            from django.utils import timezone
+            today = timezone.now().date()
+            today_customers = queryset.filter(arrived_at__date=today).count()
             
             return Response({
                 'success': True,
                 'message': 'Walk-in customers retrieved successfully',
                 'data': serializer.data,
-                'count': queryset.count()
+                'statistics': {
+                    'total_customers': total_customers,
+                    'waiting_customers': waiting_customers,
+                    'in_service_customers': in_service_customers,
+                    'completed_customers': completed_customers,
+                    'customers_with_tasks': customers_with_tasks,
+                    'today_customers': today_customers
+                },
+                'filters_applied': {
+                    'status': request.query_params.get('status'),
+                    'today_only': request.query_params.get('today_only'),
+                    'assigned_staff': request.query_params.get('assigned_staff'),
+                    'payment_status': request.query_params.get('payment_status')
+                }
             }, status=status.HTTP_200_OK)
         
         except Exception as e:
@@ -448,50 +515,118 @@ class WalkInCustomerListView(generics.ListAPIView):
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class WalkInCustomerUpdateView(generics.UpdateAPIView):
-    """Update walk-in customer status and details."""
+class WalkInCustomerDetailView(generics.RetrieveAPIView):
+    """Retrieve detailed walk-in customer information with task details."""
     serializer_class = WalkInCustomerSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [StaffAuthentication]
     
     def get_queryset(self):
-        """Return walk-in customers accessible to the staff member."""
-        staff_user = self.request.user
-        
+        """Filter queryset based on staff location/tenant."""
         try:
-            staff_profile = StaffProfile.objects.get(staff=staff_user)
+            staff_profile = StaffProfile.objects.get(staff=self.request.user)
+            if staff_profile.location:
+                return WalkInCustomer.objects.filter(
+                    location=staff_profile.location
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+            else:
+                return WalkInCustomer.objects.filter(
+                    location__tenant=staff_profile.tenant
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
         except StaffProfile.DoesNotExist:
             return WalkInCustomer.objects.none()
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Handle customer detail retrieval with comprehensive information."""
+        try:
+            customer = self.get_object()
+            serializer = self.get_serializer(customer)
+            
+            # Get all tasks for this customer
+            tasks = customer.tasks.all().order_by('-created_at')
+            task_serializer = WalkInTaskSerializer(tasks, many=True)
+            
+            # Get payment information
+            payments = customer.payments.all().order_by('-created_at')
+            payment_serializer = WalkInPaymentSerializer(payments, many=True)
+            
+            # Build comprehensive response
+            response_data = serializer.data
+            response_data['all_tasks'] = task_serializer.data
+            response_data['payments'] = payment_serializer.data
+            response_data['task_count'] = tasks.count()
+            response_data['payment_count'] = payments.count()
+            
+            return Response({
+                'success': True,
+                'message': 'Walk-in customer details retrieved successfully',
+                'data': response_data
+            }, status=status.HTTP_200_OK)
         
-        if staff_profile.location:
-            return WalkInCustomer.objects.filter(location=staff_profile.location)
-        else:
-            return WalkInCustomer.objects.filter(location__tenant=staff_profile.tenant)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while retrieving customer details',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class WalkInCustomerUpdateView(generics.UpdateAPIView):
+    """Update walk-in customer information with task synchronization."""
+    serializer_class = WalkInCustomerSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [StaffAuthentication]
+    
+    def get_queryset(self):
+        """Filter queryset based on staff location/tenant."""
+        try:
+            staff_profile = StaffProfile.objects.get(staff=self.request.user)
+            if staff_profile.location:
+                return WalkInCustomer.objects.filter(
+                    location=staff_profile.location
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+            else:
+                return WalkInCustomer.objects.filter(
+                    location__tenant=staff_profile.tenant
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+        except StaffProfile.DoesNotExist:
+            return WalkInCustomer.objects.none()
     
     def update(self, request, *args, **kwargs):
-        """Handle walk-in customer update with status timing."""
+        """Handle customer update with automatic task synchronization."""
         try:
             partial = kwargs.pop('partial', True)
-            instance = self.get_object()
-            old_status = instance.status
+            customer = self.get_object()
+            old_status = customer.status
             
-            serializer = self.get_serializer(instance, data=request.data, partial=partial)
+            serializer = self.get_serializer(customer, data=request.data, partial=partial)
             
             if serializer.is_valid():
-                # Handle status-based timing
-                new_status = serializer.validated_data.get('status', old_status)
+                # Update customer (serializer will handle task sync)
+                updated_customer = serializer.save()
                 
-                if old_status == 'waiting' and new_status == 'in_service':
-                    instance.service_started_at = timezone.now()
-                elif old_status == 'in_service' and new_status == 'completed':
-                    instance.service_completed_at = timezone.now()
+                # Get updated task information
+                primary_task = updated_customer.primary_task
                 
-                self.perform_update(serializer)
+                # Build response with task information
+                response_data = serializer.data
+                if primary_task:
+                    response_data['task_updated'] = True
+                    response_data['task_status'] = primary_task.status
+                    response_data['task_id'] = primary_task.id
+                
+                # Check if status changed
+                new_status = updated_customer.status
+                if old_status != new_status:
+                    response_data['status_changed'] = {
+                        'from': old_status,
+                        'to': new_status,
+                        'timestamp': timezone.now().isoformat()
+                    }
                 
                 return Response({
                     'success': True,
                     'message': 'Walk-in customer updated successfully',
-                    'data': serializer.data
+                    'data': response_data
                 }, status=status.HTTP_200_OK)
             
             return Response({
@@ -504,6 +639,313 @@ class WalkInCustomerUpdateView(generics.UpdateAPIView):
             return Response({
                 'success': False,
                 'message': 'An error occurred while updating walk-in customer',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class WalkInCustomerTaskDetailsView(generics.RetrieveAPIView):
+    """Get detailed task information for a walk-in customer."""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [StaffAuthentication]
+    
+    def get_queryset(self):
+        """Filter queryset based on staff location/tenant."""
+        try:
+            staff_profile = StaffProfile.objects.get(staff=self.request.user)
+            if staff_profile.location:
+                return WalkInCustomer.objects.filter(
+                    location=staff_profile.location
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+            else:
+                return WalkInCustomer.objects.filter(
+                    location__tenant=staff_profile.tenant
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+        except StaffProfile.DoesNotExist:
+            return WalkInCustomer.objects.none()
+    
+    def get(self, request, pk=None, *args, **kwargs):
+        """Get detailed task information for a customer."""
+        try:
+            customer = self.get_queryset().get(pk=pk)
+            primary_task = customer.primary_task
+            
+            if primary_task:
+                task_serializer = WalkInTaskSerializer(primary_task)
+                
+                # Get all tasks for comprehensive view
+                all_tasks = customer.tasks.all().order_by('-created_at')
+                all_tasks_serializer = WalkInTaskSerializer(all_tasks, many=True)
+                
+                return Response({
+                    'success': True,
+                    'message': 'Task details retrieved successfully',
+                    'data': {
+                        'customer_id': customer.id,
+                        'customer_name': customer.name,
+                        'primary_task': task_serializer.data,
+                        'all_tasks': all_tasks_serializer.data,
+                        'task_count': all_tasks.count()
+                    }
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    'success': False,
+                    'message': 'No task found for this customer',
+                    'data': {
+                        'customer_id': customer.id,
+                        'customer_name': customer.name,
+                        'has_tasks': False
+                    }
+                }, status=status.HTTP_404_NOT_FOUND)
+        
+        except WalkInCustomer.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Walk-in customer not found',
+                'error': 'Customer not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while retrieving task details',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class WalkInCustomerStartServiceView(generics.UpdateAPIView):
+    """Start service for a walk-in customer (updates both customer and task)."""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [StaffAuthentication]
+    
+    def get_queryset(self):
+        """Filter queryset based on staff location/tenant."""
+        try:
+            staff_profile = StaffProfile.objects.get(staff=self.request.user)
+            if staff_profile.location:
+                return WalkInCustomer.objects.filter(
+                    location=staff_profile.location
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+            else:
+                return WalkInCustomer.objects.filter(
+                    location__tenant=staff_profile.tenant
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+        except StaffProfile.DoesNotExist:
+            return WalkInCustomer.objects.none()
+    
+    def post(self, request, pk=None, *args, **kwargs):
+        """Start service for customer (updates both customer and task)."""
+        try:
+            customer = self.get_queryset().get(pk=pk)
+            primary_task = customer.primary_task
+            
+            if customer.status != 'waiting':
+                return Response({
+                    'success': False,
+                    'message': f'Customer is not in waiting status. Current status: {customer.get_status_display()}',
+                    'current_status': customer.status
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            with transaction.atomic():
+                # Update customer status
+                customer.status = 'in_service'
+                customer.service_started_at = timezone.now()
+                customer.save()
+                
+                # Update task status
+                if primary_task and primary_task.status == 'pending':
+                    primary_task.status = 'in_progress'
+                    primary_task.started_at = timezone.now()
+                    primary_task.save()
+                
+                # Serialize updated customer
+                serializer = WalkInCustomerSerializer(customer)
+                
+                return Response({
+                    'success': True,
+                    'message': 'Service started successfully',
+                    'data': serializer.data,
+                    'task_updated': primary_task is not None,
+                    'task_status': primary_task.status if primary_task else None,
+                    'service_started_at': customer.service_started_at.isoformat()
+                }, status=status.HTTP_200_OK)
+        
+        except WalkInCustomer.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Walk-in customer not found',
+                'error': 'Customer not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while starting service',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class WalkInCustomerCompleteServiceView(generics.UpdateAPIView):
+    """Complete service for a walk-in customer (updates both customer and task)."""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [StaffAuthentication]
+    
+    def get_queryset(self):
+        """Filter queryset based on staff location/tenant."""
+        try:
+            staff_profile = StaffProfile.objects.get(staff=self.request.user)
+            if staff_profile.location:
+                return WalkInCustomer.objects.filter(
+                    location=staff_profile.location
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+            else:
+                return WalkInCustomer.objects.filter(
+                    location__tenant=staff_profile.tenant
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+        except StaffProfile.DoesNotExist:
+            return WalkInCustomer.objects.none()
+    
+    def post(self, request, pk=None, *args, **kwargs):
+        """Complete service for customer (updates both customer and task)."""
+        try:
+            customer = self.get_queryset().get(pk=pk)
+            primary_task = customer.primary_task
+            
+            if customer.status != 'in_service':
+                return Response({
+                    'success': False,
+                    'message': f'Customer is not in service. Current status: {customer.get_status_display()}',
+                    'current_status': customer.status
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Optional completion data
+            quality_rating = request.data.get('quality_rating')
+            customer_feedback = request.data.get('customer_feedback')
+            final_price = request.data.get('final_price')
+            
+            with transaction.atomic():
+                # Update customer status
+                customer.status = 'completed'
+                customer.service_completed_at = timezone.now()
+                customer.save()
+                
+                # Update task status
+                if primary_task and primary_task.status == 'in_progress':
+                    primary_task.status = 'completed'
+                    primary_task.completed_at = timezone.now()
+                    primary_task.progress_percentage = 100
+                    
+                    # Set optional completion data
+                    if quality_rating:
+                        primary_task.quality_rating = quality_rating
+                    if customer_feedback:
+                        primary_task.customer_feedback = customer_feedback
+                    if final_price:
+                        primary_task.final_price = final_price
+                    
+                    # Calculate actual duration
+                    if primary_task.started_at:
+                        primary_task.actual_duration = timezone.now() - primary_task.started_at
+                    
+                    primary_task.save()
+                
+                # Serialize updated customer
+                serializer = WalkInCustomerSerializer(customer)
+                
+                return Response({
+                    'success': True,
+                    'message': 'Service completed successfully',
+                    'data': serializer.data,
+                    'task_updated': primary_task is not None,
+                    'task_status': primary_task.status if primary_task else None,
+                    'service_completed_at': customer.service_completed_at.isoformat(),
+                    'completion_data': {
+                        'quality_rating': quality_rating,
+                        'customer_feedback': customer_feedback,
+                        'final_price': final_price,
+                        'actual_duration': primary_task.duration_formatted if primary_task else None
+                    }
+                }, status=status.HTTP_200_OK)
+        
+        except WalkInCustomer.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Walk-in customer not found',
+                'error': 'Customer not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred while completing service',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class WalkInCustomerBulkUpdateView(generics.UpdateAPIView):
+    """Bulk update multiple walk-in customers."""
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [StaffAuthentication]
+    
+    def put(self, request, *args, **kwargs):
+        """Handle bulk customer updates."""
+        try:
+            customer_ids = request.data.get('customer_ids', [])
+            update_data = request.data.get('update_data', {})
+            
+            if not customer_ids:
+                return Response({
+                    'success': False,
+                    'message': 'No customer IDs provided'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Get staff profile
+            staff_profile = StaffProfile.objects.get(staff=request.user)
+            
+            # Get customers accessible to this staff
+            if staff_profile.location:
+                customers = WalkInCustomer.objects.filter(
+                    id__in=customer_ids,
+                    location=staff_profile.location
+                )
+            else:
+                customers = WalkInCustomer.objects.filter(
+                    id__in=customer_ids,
+                    location__tenant=staff_profile.tenant
+                )
+            
+            if not customers.exists():
+                return Response({
+                    'success': False,
+                    'message': 'No valid customers found'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Update customers
+            updated_count = 0
+            updated_customers = []
+            
+            with transaction.atomic():
+                for customer in customers:
+                    for field, value in update_data.items():
+                        if hasattr(customer, field):
+                            setattr(customer, field, value)
+                    customer.save()
+                    updated_count += 1
+                    updated_customers.append({
+                        'id': customer.id,
+                        'name': customer.name,
+                        'status': customer.status
+                    })
+            
+            return Response({
+                'success': True,
+                'message': f'Successfully updated {updated_count} customers',
+                'updated_count': updated_count,
+                'updated_customers': updated_customers
+            }, status=status.HTTP_200_OK)
+        
+        except StaffProfile.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Staff profile not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'An error occurred during bulk update',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -557,8 +999,7 @@ class WalkInTaskListView(generics.ListAPIView):
         
         # Base queryset - tasks assigned to staff
         queryset = WalkInTask.objects.filter(assigned_to=staff_profile).select_related(
-            'walkin_customer', 'assigned_to', 'created_by', 'prerequisite_task'
-        )
+            'walkin_customer', 'assigned_to', 'created_by')
         
         # Apply filters
         status_filter = self.request.query_params.get('status')
@@ -716,7 +1157,7 @@ class WalkInTaskDetailView(generics.RetrieveAPIView):
         
         return WalkInTask.objects.filter(
             models.Q(assigned_to=staff_profile) | models.Q(created_by=staff_profile)
-        ).select_related('walkin_customer', 'assigned_to', 'created_by', 'prerequisite_task')
+        ).select_related('walkin_customer', 'assigned_to', 'created_by')
     
     def retrieve(self, request, *args, **kwargs):
         """Handle task detail retrieval with customer info and related tasks."""
@@ -734,17 +1175,9 @@ class WalkInTaskDetailView(generics.RetrieveAPIView):
             
             related_tasks_serializer = WalkInTaskSerializer(related_tasks, many=True)
             
-            # Get dependent tasks (tasks that depend on this one)
-            dependent_tasks = WalkInTask.objects.filter(
-                prerequisite_task=instance
-            ).order_by('-created_at')
-            
-            dependent_tasks_serializer = WalkInTaskSerializer(dependent_tasks, many=True)
-            
             response_data = serializer.data
             response_data['customer_details'] = customer_serializer.data
             response_data['related_tasks'] = related_tasks_serializer.data
-            response_data['dependent_tasks'] = dependent_tasks_serializer.data
             
             return Response({
                 'success': True,
@@ -1154,6 +1587,123 @@ class WalkInPaymentListView(generics.ListAPIView):
                 'message': 'An error occurred while retrieving payments',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+class WalkInCustomerViewSet(viewsets.ModelViewSet):
+    """Enhanced ViewSet for walk-in customers with automatic task creation."""
+    serializer_class = WalkInCustomerSerializer
+    authentication_classes = [StaffAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter queryset based on staff location/tenant."""
+        try:
+            staff_profile = StaffProfile.objects.get(staff=self.request.user)
+            if staff_profile.location:
+                return WalkInCustomer.objects.filter(
+                    location=staff_profile.location
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+            else:
+                return WalkInCustomer.objects.filter(
+                    location__tenant=staff_profile.tenant
+                ).select_related('location', 'location_service', 'assigned_staff', 'created_by')
+        except StaffProfile.DoesNotExist:
+            return WalkInCustomer.objects.none()
+    
+    def create(self, request, *args, **kwargs):
+        """Create walk-in customer with automatic task creation."""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        # Create customer (task will be auto-created)
+        customer = serializer.save()
+        
+        # Return success response with task information
+        return Response({
+            'success': True,
+            'message': 'Walk-in customer created successfully with automatic task',
+            'data': serializer.data,
+            'task_created': customer.tasks.exists(),
+            'task_id': customer.primary_task.id if customer.primary_task else None
+        }, status=status.HTTP_201_CREATED)
+    
+    @action(detail=True, methods=['get'])
+    def task_details(self, request, pk=None):
+        """Get detailed task information for a customer."""
+        customer = self.get_object()
+        primary_task = customer.primary_task
+        
+        if primary_task:
+            task_serializer = WalkInTaskSerializer(primary_task)
+            return Response({
+                'success': True,
+                'data': task_serializer.data
+            })
+        else:
+            return Response({
+                'success': False,
+                'message': 'No task found for this customer'
+            }, status=status.HTTP_404_NOT_FOUND)
+    
+    @action(detail=True, methods=['post'])
+    def start_service(self, request, pk=None):
+        """Start service for customer (updates both customer and task)."""
+        customer = self.get_object()
+        primary_task = customer.primary_task
+        
+        if customer.status != 'waiting':
+            return Response({
+                'success': False,
+                'message': 'Customer is not in waiting status'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update customer status
+        customer.status = 'in_service'
+        customer.service_started_at = timezone.now()
+        customer.save()
+        
+        # Update task status
+        if primary_task and primary_task.status == 'pending':
+            primary_task.status = 'in_progress'
+            primary_task.started_at = timezone.now()
+            primary_task.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Service started successfully',
+            'data': WalkInCustomerSerializer(customer).data
+        })
+    
+    @action(detail=True, methods=['post'])
+    def complete_service(self, request, pk=None):
+        """Complete service for customer (updates both customer and task)."""
+        customer = self.get_object()
+        primary_task = customer.primary_task
+        
+        if customer.status != 'in_service':
+            return Response({
+                'success': False,
+                'message': 'Customer is not in service'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Update customer status
+        customer.status = 'completed'
+        customer.service_completed_at = timezone.now()
+        customer.save()
+        
+        # Update task status
+        if primary_task and primary_task.status == 'in_progress':
+            primary_task.status = 'completed'
+            primary_task.completed_at = timezone.now()
+            primary_task.progress_percentage = 100
+            if primary_task.started_at:
+                primary_task.actual_duration = timezone.now() - primary_task.started_at
+            primary_task.save()
+        
+        return Response({
+            'success': True,
+            'message': 'Service completed successfully',
+            'data': WalkInCustomerSerializer(customer).data
+        })
 
 
 
