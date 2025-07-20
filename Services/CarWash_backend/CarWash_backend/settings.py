@@ -173,7 +173,7 @@ DATABASES = {
     'default': {
     #    'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants for multi-tenancy
         'ENGINE': 'django.db.backends.postgresql_psycopg2',  # Use
-        'NAME': 'Carwash_db',
+        'NAME': 'CarWash_db2',
         'USER': 'postgres',
         # Use your actual database password here
         'PASSWORD': 'Byzone12',
