@@ -71,6 +71,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     "http://localhost:58147",
+    "http://192.168.137.1:8000"
 ]
 
 
@@ -110,6 +111,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',  # Token blacklist for JWT
     "booking",  # Booking app
     "Staff.apps.StaffConfig",  # Staff management app
+    "Report_Analysis.apps.ReportAnalysisConfig",  # Report analysis app
 ]
 
 MIDDLEWARE = [
@@ -282,7 +284,9 @@ ALLOWED_HOSTS = [
     'localhost',
     '127.0.0.1',
     '0.0.0.0',
-    '192.168.137.43', # my Lenovo IP
+    '192.168.137.1', 
+    '192.168.27.53',
+    # my Lenovo IP
 ]
 
 # Update CORS settings for cross-origin requests
@@ -292,7 +296,9 @@ CORS_ALLOW_ALL_ORIGINS = True  # For development only
 CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3000",
-    "http://41.89.64.70:8000",  # Replace with your Lenovo IP
+    "http://41.89.64.70:8000", 
+    "http://192.168.27.53:8000"
+# Replace with your Lenovo IP
     # Add HP laptop IP if needed for web testing
 ]
 

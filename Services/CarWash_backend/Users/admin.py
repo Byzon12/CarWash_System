@@ -7,6 +7,7 @@ from Staff.models import StaffProfile, StaffRole, Staff, WalkInCustomer, WalkInT
 
 from .models import CustomerProfile, AuditLog
 from Tenant.models import CarCheckIn
+from Report_Analysis.models import ReportTemplate
 
 
 @admin.register(CustomerProfile)
