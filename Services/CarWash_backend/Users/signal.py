@@ -12,7 +12,14 @@ def create_customer_profile(sender, instance, created, **kwargs):
     Create a CustomerProfile instance when a User is created.
     """
     if created:
-        CustomerProfile.objects.create(user=instance)
+        CustomerProfile.objects.create(
+            user=instance,
+            first_name=instance.first_name,
+            last_name=instance.last_name,
+            email=instance.email,
+            phone_number=instance.profile.phone_number if hasattr(instance, 'profile') else None,
+            address=instance.profile.address if hasattr(instance, 'profile') else None
+          )
     # send registration email
     send_registration_email(instance)
 

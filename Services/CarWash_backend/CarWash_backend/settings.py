@@ -38,64 +38,43 @@ DEBUG = True
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
-      #  "rest_framework_simplejwt.authentication.JWTAuthentication",
-        "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
-       "Staff.Authentication.StaffAuthentication",  # Custom staff authentication
-       
-        "knox.auth.TokenAuthentication",  # Knox authentication
         
-    ),
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated",
-    ],
-}
-"""
-
-REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-        "rest_framework_simplejwt.authentication.JWTAuthentication",  # JWT authentication
+        #"rest_framework_simplejwt.authentication.JWTAuthentication",
         "Tenant.Authentication.TenantAuthentication",  # Custom tenant authentication
-        
+        "Staff.Authentication.StaffAuthentication",  # Custom staff authentication
         "knox.auth.TokenAuthentication",  # Knox authentication
-        
+        "rest_framework.authentication.SessionAuthentication",  # Default session authentication
     ),
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-}REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": (
-          "Tenant.Authentication.TenantAuthentication", # Custom tenant authentication
-           "rest_framework_simplejwt.authentication.JWTAuthentication", 
-        "knox.auth.TokenAuthentication",  # Knox authentication
-        
-    ),
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticated",
-    ],
-}"""
+
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+}
 
 SIMPLE_JWT= {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=180),  # Access token lifetime
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),  
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=180),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
-    "ROTATE_REFRESH_TOKENS": True,  # Rotate refresh tokens
-    "BLACKLIST_AFTER_ROTATION": True,  # Blacklist old refresh tokens after rotation
-    # Refresh token lifetime  
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True,
 }
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins for development; change in production
+CORS_ALLOW_ALL_ORIGINS = True  
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    "http://localhost:58147",  # Example for React development server
+    "http://localhost:58147",
 ]
 
 
-CORS_ALLOW_CREDENTIALS = True  # Allow credentials for CORS requests
+CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_HEADERS = [
     'authorization',
     'content-type', 
@@ -331,7 +310,3 @@ CORS_ALLOW_HEADERS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
-REST_FRAMEWORK = {
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
-}

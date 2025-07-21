@@ -101,8 +101,8 @@ class LocationSerializer(serializers.ModelSerializer):
         return obj.location_services.count()
     
     def get_is_active(self, obj):
-        """Check if location has any active service packages."""
-        return obj.location_services.exists()
+        """make sure location is active by default"""
+        return obj.is_active if hasattr(obj, 'is_active') else True
     
     def get_created_at_formatted(self, obj):
         """Format created_at for mobile display."""
@@ -283,8 +283,8 @@ class ServiceSerializer(serializers.ModelSerializer):
         return f"KSh {obj.price:,.2f}" if obj.price else "KSh 0.00"
     
     def get_is_active(self, obj):
-        """Check if service is used in any location services."""
-        return obj.location_services.exists()
+        """Ensures that the service is active by default."""
+        return obj.is_active if hasattr(obj, 'is_active') else True
     
     def get_usage_count(self, obj):
         """Count how many location services use this service."""
