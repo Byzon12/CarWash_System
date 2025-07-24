@@ -27,3 +27,14 @@ Booking created: BK202507212490 by admin16
 Failed to get M-Pesa access token: HTTPSConnectionPool(host='sandbox.safaricom.co.ke', port=443): Max retries exceeded with url: /oauth/v1/generate?grant_type=client_credentials (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000025521C39550>: Failed to resolve 'sandbox.safaricom.co.ke' ([Errno 11001] getaddrinfo failed)"))
 M-Pesa STK Push failed for BK202507212490: Access token error: HTTPSConnectionPool(host='sandbox.safaricom.co.ke', port=443): Max retries exceeded with url: /oauth/v1/generate?grant_type=client_credentials (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000025521C39550>: Failed to resolve 'sandbox.safaricom.co.ke' ([Errno 11001] getaddrinfo failed)"))
 M-Pesa payment initiation failed for booking BK202507212490: {'success': False, 'error': 'Access token error: HTTPSConnectionPool(host=\'sandbox.safaricom.co.ke\', port=443): Max retries exceeded with url: /oauth/v1/generate?grant_type=client_credentials (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000025521C39550>: Failed to resolve \'sandbox.safaricom.co.ke\' ([Errno 11001] getaddrinfo failed)"))', 'response_description': 'Payment initiation failed'}
+Booking created: BK202507243222 by admin16
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507212490: {'MerchantRequestID': '867d-4ca2-8511-38a4b762b49c11676', 'CheckoutRequestID': 'ws_CO_240720251448461700764847', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507212490
+Booking created: BK202507248712 by admin16
+Booking created: BK202507245639 by admin16
+Booking created: BK202507249603 by admin16
+Booking created: BK202507244087 by admin16
+Booking created: BK202507243808 by admin16
+Booking created: BK202507249413 by admin16
+Booking created: BK202507242932 by admin16

@@ -7,7 +7,14 @@ from Staff.models import StaffProfile, StaffRole, Staff, WalkInCustomer, WalkInT
 
 from .models import CustomerProfile, AuditLog
 from Tenant.models import CarCheckIn
-from Report_Analysis.models import ReportTemplate
+from Report_Analysis.models import  (
+    ReportTemplate, GeneratedReport, ReportSchedule, AnalyticsSnapshot,
+    CustomReportFilter, ReportBookmark, LocationPerformanceMetrics,
+    TenantAnalyticsSummary
+)
+from django.utils.html import format_html
+from django.urls import reverse
+from django.http import HttpResponse
 
 
 @admin.register(CustomerProfile)
@@ -423,3 +430,87 @@ class WalkInPaymentAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Disable the delete permission for WalkInPayment."""
         return False
+
+
+
+
+@admin.register(ReportTemplate)
+class ReportTemplateAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'report_type', 'frequency', 'is_active', 'auto_generate', 'created_at']
+    list_filter = ['report_type', 'frequency', 'is_active', 'auto_generate', 'created_at']
+    search_fields = ['name', 'tenant__name', 'description']
+    readonly_fields = ['id', 'created_at', 'updated_at']
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'tenant', 'report_type', 'description')
+        }),
+        ('Configuration', {
+            'fields': ('frequency', 'is_active', 'auto_generate', 'email_recipients', 'config')
+        }),
+        ('Metadata', {
+            'fields': ('id', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        })
+    )
+
+@admin.register(GeneratedReport)
+class GeneratedReportAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'report_type', 'status', 'format', 'download_link', 'created_at', 'expires_at']
+    list_filter = ['report_type', 'status', 'format', 'created_at']
+    search_fields = ['name', 'tenant__name']
+    readonly_fields = ['id', 'created_at', 'download_link', 'is_expired_display']
+    
+    def download_link(self, obj):
+        if obj.file_url:
+            return format_html('<a href="{}" target="_blank">Download</a>', obj.file_url)
+        return "No file"
+    download_link.short_description = "Download"
+    
+    def is_expired_display(self, obj):
+        return "Yes" if obj.is_expired() else "No"
+    is_expired_display.short_description = "Is Expired"
+    is_expired_display.boolean = True
+
+@admin.register(ReportSchedule)
+class ReportScheduleAdmin(admin.ModelAdmin):
+    list_display = ['template', 'tenant', 'is_active', 'next_run', 'last_run', 'run_count']
+    list_filter = ['is_active', 'next_run', 'created_at']
+    search_fields = ['template__name', 'tenant__name']
+
+@admin.register(AnalyticsSnapshot)
+class AnalyticsSnapshotAdmin(admin.ModelAdmin):
+    list_display = ['tenant', 'location', 'snapshot_date', 'total_bookings', 'daily_revenue', 'completion_rate']
+    list_filter = ['snapshot_date', 'tenant', 'location']
+    search_fields = ['tenant__name', 'location__name']
+    readonly_fields = ['completion_rate']
+    
+    def completion_rate(self, obj):
+        if obj.total_bookings > 0:
+            return f"{(obj.completed_bookings / obj.total_bookings * 100):.1f}%"
+        return "0%"
+    completion_rate.short_description = "Completion Rate"
+
+@admin.register(LocationPerformanceMetrics)
+class LocationPerformanceMetricsAdmin(admin.ModelAdmin):
+    list_display = ['location', 'date', 'bookings_received', 'gross_revenue', 'staff_utilization_rate']
+    list_filter = ['date', 'location__tenant', 'location']
+    search_fields = ['location__name', 'location__tenant__name']
+
+@admin.register(TenantAnalyticsSummary)
+class TenantAnalyticsSummaryAdmin(admin.ModelAdmin):
+    list_display = ['tenant', 'period_type', 'period_start', 'period_end', 'total_revenue', 'completion_rate']
+    list_filter = ['period_type', 'period_start', 'tenant']
+    search_fields = ['tenant__name']
+
+@admin.register(CustomReportFilter)
+class CustomReportFilterAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'filter_type', 'is_default', 'created_at']
+    list_filter = ['filter_type', 'is_default', 'created_at']
+    search_fields = ['name', 'tenant__name']
+
+@admin.register(ReportBookmark)
+class ReportBookmarkAdmin(admin.ModelAdmin):
+    list_display = ['name', 'tenant', 'is_favorite', 'access_count', 'last_accessed', 'created_by']
+    list_filter = ['is_favorite', 'last_accessed', 'created_at']
+    search_fields = ['name', 'tenant__name']

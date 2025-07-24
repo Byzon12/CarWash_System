@@ -39,7 +39,7 @@ DEBUG = True
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         
-        #"rest_framework_simplejwt.authentication.JWTAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
         "Tenant.Authentication.TenantAuthentication",  # Custom tenant authentication
         "Staff.Authentication.StaffAuthentication",  # Custom staff authentication
         "knox.auth.TokenAuthentication",  # Knox authentication
@@ -280,27 +280,13 @@ LOGGING = {
 }
 
 # Find your current ALLOWED_HOSTS and update it
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '0.0.0.0',
-    '192.168.137.1', 
-    '192.168.27.53',
-    # my Lenovo IP
-]
+ALLOWED_HOSTS = ["*"]
 
 # Update CORS settings for cross-origin requests
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
 
 # Or be more specific with allowed origins
-CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3000",
-    "http://41.89.64.70:8000", 
-    "http://192.168.27.53:8000"
-# Replace with your Lenovo IP
-    # Add HP laptop IP if needed for web testing
-]
+CORS_ALLOWED_ORIGINS = ["http://192.168.0.104:8000"]
 
 # Enable CORS for all headers (development only)
 CORS_ALLOW_HEADERS = [

@@ -79,6 +79,7 @@ class FinancialReportSerializer(serializers.Serializer):
     # Report metadata
     report_title = serializers.CharField(read_only=True)
     generated_at = serializers.DateTimeField(read_only=True)
+    #write only fields
     period_start = serializers.DateField()
     period_end = serializers.DateField()
     
@@ -93,6 +94,8 @@ class FinancialReportSerializer(serializers.Serializer):
     
     # Service breakdown
     service_revenue = serializers.SerializerMethodField()
+    
+    location_service_revenue = serializers.SerializerMethodField()
     
     # Trends
     daily_revenue_trend = serializers.SerializerMethodField()
@@ -138,7 +141,7 @@ class FinancialReportSerializer(serializers.Serializer):
         
         return location_data
     
-    def get_service_revenue(self, obj):
+    def get_location_service_revenue(self, obj):
         """Get revenue breakdown by service"""
         tenant = self.context.get('tenant')
         if not tenant:
@@ -154,17 +157,17 @@ class FinancialReportSerializer(serializers.Serializer):
             created_at__date__range=[obj['period_start'], obj['period_end']]
         ).select_related('location_service')
         
-        service_data = {}
+        location_service_data = {}
         for booking in bookings:
             if booking.location_service:
                 service_name = booking.location_service.name
-                if service_name not in service_data:
-                    service_data[service_name] = {
+                if service_name not in location_service_data:
+                    location_service_data[service_name] = {
                         'revenue': Decimal('0.00'),
                         'count': 0
                     }
-                service_data[service_name]['revenue'] += booking.total_amount
-                service_data[service_name]['count'] += 1
+                location_service_data[service_name]['revenue'] += booking.total_amount
+                location_service_data[service_name]['count'] += 1
         
         return [
             {
@@ -173,7 +176,7 @@ class FinancialReportSerializer(serializers.Serializer):
                 'bookings_count': data['count'],
                 'percentage': round((data['revenue'] / obj.get('total_revenue', Decimal('1.00'))) * 100, 2)
             }
-            for name, data in service_data.items()
+            for name, data in service_name.items()
         ]
     
     def get_daily_revenue_trend(self, obj):

@@ -581,3 +581,174 @@ class ReportBookmarkView(generics.GenericAPIView):
             'message': 'Bookmark creation failed',
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_report_insights(request):
+    """Get AI-powered insights for tenant analytics"""
+    tenant = request.user
+    
+    # Get date range
+    date_from = request.query_params.get('date_from')
+    date_to = request.query_params.get('date_to')
+    
+    try:
+        start_date = datetime.strptime(date_from, '%Y-%m-%d').date()
+        end_date = datetime.strptime(date_to, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        end_date = date.today()
+        start_date = end_date - timedelta(days=30)
+    
+    # Generate insights
+    processor = AnalyticsProcessor(tenant)
+    
+    # Get period data (simplified version)
+    period_data = {
+        'revenue_growth': 5.2,  # This would be calculated from actual data
+        'completion_rate': 85.6,
+        'customer_satisfaction': 88.4
+    }
+    
+    insights = processor.generate_insights(period_data)
+    
+    return Response({
+        'success': True,
+        'message': 'Insights generated successfully',
+        'data': insights,
+        'period': {
+            'start': start_date,
+            'end': end_date
+        }
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def schedule_report_generation(request):
+    """Schedule automatic report generation"""
+    from .models import ReportSchedule, ReportTemplate
+    
+    tenant = request.user
+    template_id = request.data.get('template_id')
+    
+    try:
+        template = ReportTemplate.objects.get(id=template_id, tenant=tenant)
+        
+        # Calculate next run time
+        scheduler = ReportScheduler()
+        next_run = scheduler._calculate_next_run(template.frequency)
+        
+        schedule = ReportSchedule.objects.create(
+            tenant=tenant,
+            template=template,
+            next_run=next_run,
+            is_active=True
+        )
+        
+        return Response({
+            'success': True,
+            'message': 'Report generation scheduled successfully',
+            'data': {
+                'schedule_id': schedule.id,
+                'next_run': next_run,
+                'frequency': template.frequency
+            }
+        })
+        
+    except ReportTemplate.DoesNotExist:
+        return Response({
+            'success': False,
+            'message': 'Report template not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+class DashboardMetricsView(generics.GenericAPIView):
+    """Quick dashboard metrics for tenant overview"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        """Get quick dashboard metrics"""
+        tenant = request.user
+        today = date.today()
+        
+        # Today's metrics
+        from booking.models import booking
+        from Tenant.models import Task
+        
+        today_bookings = booking.objects.filter(
+            location__tenant=tenant,
+            created_at__date=today
+        ).count()
+        
+        today_revenue = booking.objects.filter(
+            location__tenant=tenant,
+            status='completed',
+            payment_status='paid',
+            created_at__date=today
+        ).aggregate(total=Sum('total_amount'))['total'] or Decimal('0.00')
+        
+        pending_tasks = Task.objects.filter(
+            tenant=tenant,
+            status='pending'
+        ).count()
+        
+        # Week comparison
+        week_ago = today - timedelta(days=7)
+        weekly_bookings = booking.objects.filter(
+            location__tenant=tenant,
+            created_at__date__range=[week_ago, today]
+        ).count()
+        
+        return Response({
+            'success': True,
+            'data': {
+                'today': {
+                    'bookings': today_bookings,
+                    'revenue': str(today_revenue),
+                    'pending_tasks': pending_tasks
+                },
+                'weekly': {
+                    'total_bookings': weekly_bookings,
+                    'daily_average': round(weekly_bookings / 7, 1)
+                },
+                'alerts': self._get_alerts(tenant)
+            }
+        })
+    
+    def _get_alerts(self, tenant):
+        """Get system alerts for tenant"""
+        alerts = []
+        
+        # Check for overdue tasks
+        from Tenant.models import Task
+        overdue_count = Task.objects.filter(
+            tenant=tenant,
+            status='overdue'
+        ).count()
+        
+        if overdue_count > 0:
+            alerts.append({
+                'type': 'warning',
+                'message': f"{overdue_count} overdue tasks need attention",
+                'action': 'view_tasks'
+            })
+        
+        # Check for low completion rates
+        from booking.models import booking
+        recent_bookings = booking.objects.filter(
+            location__tenant=tenant,
+            created_at__date__gte=date.today() - timedelta(days=7)
+        )
+        
+        if recent_bookings.exists():
+            completion_rate = (
+                recent_bookings.filter(status='completed').count() / 
+                recent_bookings.count() * 100
+            )
+            
+            if completion_rate < 80:
+                alerts.append({
+                    'type': 'danger',
+                    'message': f"Low completion rate: {completion_rate:.1f}%",
+                    'action': 'improve_operations'
+                })
+        
+        return alerts
