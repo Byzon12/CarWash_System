@@ -10,10 +10,12 @@ urlpatterns = [
     path('<int:pk>/', views.BookingDetailView.as_view(), name='booking-detail'),
     path('<int:pk>/update/', views.BookingUpdateView.as_view(), name='booking-update'),
     path('<int:pk>/cancel/', views.BookingCancelView.as_view(), name='booking-cancel'),
-    
+    path('delete/<int:pk>/', views.BookingDeleteView.as_view(), name='booking-delete'),
+
     # Payment management
     path('payment/initiate/', views.PaymentInitiationView.as_view(), name='payment-initiate'),
     path('payment/status/', views.check_payment_status, name='payment-status'),
+    path('<int:pk>/payment/initiate/', views.PaymentInitiationView.as_view(), name='payment-initiate-url'),
     
     # Payment callbacks
     path('mpesa-callback/', views.mpesa_callback, name='mpesa-callback'),

@@ -9,7 +9,8 @@ from .serializer import (
     CustomerProfileUpdateSerializer, PasswordResetSerializer, 
     PasswordResetConfirmSerializer, PasswordChangeSerializer,
     FlutterRegisterUserSerializer, FlutterLoginSerializer, 
-    FlutterCustomerProfileSerializer)
+    FlutterCustomerProfileSerializer, LoyaltyPointsStatsSerializer,
+    FlutterLoyaltyDashboardSerializer, LoyaltyPointsTransactionSerializer)
 from . import serializer
 from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
 from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
@@ -113,6 +114,32 @@ class FlutterLoginView(generics.GenericAPIView):
             from django.contrib.auth import update_session_auth_hash
             user.save(update_fields=['last_login'])
             
+            # Award daily login bonus automatically
+            login_bonus_points = 0
+            try:
+                customer_profile = user.Customer_profile
+                login_bonus_points = customer_profile.award_login_points()
+                if login_bonus_points > 0:
+                    # Add loyalty info to response
+                    user_data['loyalty_info'] = {
+                        'current_points': customer_profile.loyalty_points,
+                        'points_earned_today': login_bonus_points,
+                        'loyalty_tier': customer_profile.get_loyalty_tier(),
+                        'message': f'Welcome back! You earned {login_bonus_points} loyalty points for logging in today.'
+                    }
+                else:
+                    user_data['loyalty_info'] = {
+                        'current_points': customer_profile.loyalty_points,
+                        'points_earned_today': 0,
+                        'loyalty_tier': customer_profile.get_loyalty_tier(),
+                        'message': 'You have already received your daily login bonus today.'
+                    }
+            except Exception as e:
+                # If customer profile doesn't exist or error occurs, continue without loyalty points
+                user_data['loyalty_info'] = {
+                    'error': f'Could not process loyalty points: {str(e)}'
+                }
+            
             # Log successful login
             log_audit_action(
                 request, 
@@ -120,7 +147,8 @@ class FlutterLoginView(generics.GenericAPIView):
                 action='login', 
                 details={
                     'ip_address': request.META.get('REMOTE_ADDR'),
-                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:255]
+                    'user_agent': request.META.get('HTTP_USER_AGENT', '')[:255],
+                    'login_bonus_awarded': login_bonus_points
                 }, 
                 success=True
             )
@@ -323,18 +351,48 @@ class LoginUserView(generics.GenericAPIView):
         
         user = serializer.validated_data['user']
         refresh = RefreshToken.for_user(user)
+        
+        # Award daily login bonus automatically
+        login_bonus_points = 0
+        loyalty_info = {}
+        try:
+            customer_profile = user.Customer_profile
+            login_bonus_points = customer_profile.award_login_points()
+            loyalty_info = {
+                'current_points': customer_profile.loyalty_points,
+                'points_earned_today': login_bonus_points,
+                'loyalty_tier': customer_profile.get_loyalty_tier(),
+            }
+            if login_bonus_points > 0:
+                loyalty_info['message'] = f'Welcome back! You earned {login_bonus_points} loyalty points for logging in today.'
+            else:
+                loyalty_info['message'] = 'You have already received your daily login bonus today.'
+        except Exception as e:
+            loyalty_info = {'error': f'Could not process loyalty points: {str(e)}'}
     
         # Log the successful login action
-        log_audit_action(request, user=user, action='login', details={'ip_address': request.META.get('REMOTE_ADDR')}, success=True)
+        log_audit_action(
+            request, 
+            user=user, 
+            action='login', 
+            details={
+                'ip_address': request.META.get('REMOTE_ADDR'),
+                'login_bonus_awarded': login_bonus_points
+            }, 
+            success=True
+        )
         # Send a login notification email
         # send_login_notification_email(user, request)
-        return Response({
+        response_data = {
             'refresh': str(refresh),
             'access': str(refresh.access_token),
             'user_id': user.id,
             'username': user.username,
-            'email': user.email
-        }, status=status.HTTP_200_OK)
+            'email': user.email,
+            'loyalty_info': loyalty_info
+        }
+        
+        return Response(response_data, status=status.HTTP_200_OK)
         
 class LogoutUserView(generics.GenericAPIView):
     """
@@ -626,4 +684,217 @@ def location_services_list(request, location_id=None):
             'success': False,
             'message': 'Error retrieving location services',
             'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Loyalty Points Views
+class LoyaltyPointsDashboardView(generics.RetrieveAPIView):
+    """
+    Comprehensive loyalty points dashboard for Flutter app
+    """
+    serializer_class = FlutterLoyaltyDashboardSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self):
+        return self.request.user.Customer_profile
+    
+    def retrieve(self, request, *args, **kwargs):
+        """Get loyalty points dashboard data"""
+        try:
+            customer_profile = self.get_object()
+            serializer = self.get_serializer(customer_profile)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': f'Error retrieving loyalty dashboard: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class LoyaltyPointsHistoryView(generics.ListAPIView):
+    """
+    Get loyalty points transaction history
+    """
+    serializer_class = LoyaltyPointsTransactionSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        customer_profile = self.request.user.Customer_profile
+        return customer_profile.loyalty_transactions.all()
+    
+    def list(self, request, *args, **kwargs):
+        """Get paginated loyalty points history"""
+        try:
+            queryset = self.get_queryset()
+            
+            # Apply filters
+            transaction_type = request.query_params.get('type')
+            if transaction_type:
+                queryset = queryset.filter(transaction_type=transaction_type)
+            
+            date_from = request.query_params.get('date_from')
+            if date_from:
+                queryset = queryset.filter(created_at__date__gte=date_from)
+            
+            date_to = request.query_params.get('date_to')
+            if date_to:
+                queryset = queryset.filter(created_at__date__lte=date_to)
+            
+            # Pagination
+            page_size = int(request.query_params.get('page_size', 20))
+            page = int(request.query_params.get('page', 1))
+            start = (page - 1) * page_size
+            end = start + page_size
+            
+            total_count = queryset.count()
+            transactions = queryset[start:end]
+            
+            # Serialize data
+            serialized_data = []
+            for transaction in transactions:
+                serialized_data.append({
+                    'transaction_type': transaction.transaction_type,
+                    'points_earned': transaction.points_earned,
+                    'booking_amount': str(transaction.booking_amount) if transaction.booking_amount else None,
+                    'booking_id': transaction.booking_id,
+                    'description': transaction.description,
+                    'created_at': transaction.created_at.isoformat(),
+                    'formatted_date': transaction.created_at.strftime('%B %d, %Y at %I:%M %p')
+                })
+            
+            return Response({
+                'success': True,
+                'message': 'Loyalty points history retrieved successfully',
+                'data': {
+                    'transactions': serialized_data,
+                    'pagination': {
+                        'current_page': page,
+                        'page_size': page_size,
+                        'total_count': total_count,
+                        'total_pages': math.ceil(total_count / page_size),
+                        'has_next': end < total_count,
+                        'has_previous': page > 1
+                    }
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': f'Error retrieving loyalty history: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def redeem_loyalty_points(request):
+    """
+    Redeem loyalty points for discounts or rewards
+    """
+    try:
+        customer_profile = request.user.Customer_profile
+        points_to_redeem = int(request.data.get('points', 0))
+        reason = request.data.get('reason', 'Points redemption')
+        
+        if points_to_redeem <= 0:
+            return Response({
+                'success': False,
+                'message': 'Invalid points amount'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        if customer_profile.loyalty_points < points_to_redeem:
+            return Response({
+                'success': False,
+                'message': f'Insufficient points. You have {customer_profile.loyalty_points} points available.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Redeem points
+        success = customer_profile.redeem_points(points_to_redeem, reason=reason)
+        
+        if success:
+            return Response({
+                'success': True,
+                'message': f'Successfully redeemed {points_to_redeem} points',
+                'data': {
+                    'points_redeemed': points_to_redeem,
+                    'remaining_points': customer_profile.loyalty_points,
+                    'loyalty_tier': customer_profile.get_loyalty_tier()
+                }
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'success': False,
+                'message': 'Failed to redeem points'
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'Error redeeming points: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def loyalty_tier_info(request):
+    """
+    Get detailed information about loyalty tiers and benefits
+    """
+    try:
+        customer_profile = request.user.Customer_profile
+        current_tier = customer_profile.get_loyalty_tier()
+        
+        tier_info = {
+            'Bronze': {
+                'threshold': 0,
+                'next_threshold': 10000,
+                'benefits': ['Basic car wash discounts', 'Birthday bonus'],
+                'discount_percentage': 0
+            },
+            'Silver': {
+                'threshold': 10000,
+                'next_threshold': 25000,
+                'benefits': ['5% discount on all services', 'Priority booking', 'Monthly bonus points'],
+                'discount_percentage': 5
+            },
+            'Gold': {
+                'threshold': 25000,
+                'next_threshold': 50000,
+                'benefits': ['10% discount on all services', 'Free service every 10 bookings', 'VIP support'],
+                'discount_percentage': 10
+            },
+            'Platinum': {
+                'threshold': 50000,
+                'next_threshold': None,
+                'benefits': ['15% discount on all services', 'Complimentary premium services', 'Dedicated account manager'],
+                'discount_percentage': 15
+            }
+        }
+        
+        progress_to_next = customer_profile.get_points_to_next_tier()
+        
+        return Response({
+            'success': True,
+            'message': 'Loyalty tier information retrieved successfully',
+            'data': {
+                'current_tier': {
+                    'name': current_tier,
+                    'info': tier_info[current_tier]
+                },
+                'all_tiers': tier_info,
+                'progress': {
+                    'current_spent': float(customer_profile.total_spent),
+                    'points_to_next_tier': progress_to_next,
+                    'progress_percentage': (
+                        (float(customer_profile.total_spent) / tier_info[current_tier]['next_threshold']) * 100
+                        if tier_info[current_tier]['next_threshold'] else 100
+                    )
+                }
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'Error retrieving tier info: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -1,4 +1,4 @@
-from ctypes import FormatError
+
 from email import message
 from functools import total_ordering
 from os import read, write

@@ -6,7 +6,10 @@ from .views import (
     FlutterRegisterView, FlutterLoginView, FlutterProfileView, FlutterLogoutView,
     flutter_user_status, flutter_check_username, flutter_check_email,
     # Enhanced location views
-    UserAvailableLocationsView,location_services_list
+    UserAvailableLocationsView,location_services_list,
+    # Loyalty Points views
+    LoyaltyPointsDashboardView, LoyaltyPointsHistoryView, 
+    redeem_loyalty_points, loyalty_tier_info
    # search_locations, location_details, 
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -41,6 +44,12 @@ urlpatterns = [
     path('locations/', UserAvailableLocationsView.as_view(), name='user_available_locations'),
     path('locations/services/', location_services_list, name='all_location_services'),
     path('locations/<int:location_id>/services/', location_services_list, name='location_specific_services'),
+    
+    # Loyalty Points endpoints
+    path('loyalty/dashboard/', LoyaltyPointsDashboardView.as_view(), name='loyalty_dashboard'),
+    path('loyalty/history/', LoyaltyPointsHistoryView.as_view(), name='loyalty_history'),
+    path('loyalty/redeem/', redeem_loyalty_points, name='redeem_loyalty_points'),
+    path('loyalty/tier-info/', loyalty_tier_info, name='loyalty_tier_info'),
   #  path('locations/nearby/', NearbyLocationsView.as_view(), name='nearby_locations'),
  #  path('locations/popular/', PopularLocationsView.as_view(), name='popular_locations'),
    #path('locations/search/', search_locations, name='search_locations'),

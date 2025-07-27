@@ -98,6 +98,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     )
     
     # Read-only fields (auto-populated)
+    id = serializers.IntegerField(read_only=True)  # Add this line
     customer_email = serializers.EmailField(read_only=True,
         source='customer.email',
         help_text=_("Customer email from profile (read-only)"))
@@ -117,15 +118,16 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = booking
         fields = [
+            # Add the id field first
+            'id',
+            
             # Core booking fields
             'location',
             'location_service', 
             'booking_date',
             
             # Customer details
-            
             'customer_phone',
-           
             'vehicle_details',
             'special_instructions',
             
@@ -146,6 +148,7 @@ class BookingCreateSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = [
+            'id',  # Add this line
             'customer',
             'booking_number', 
             'status', 
@@ -280,6 +283,9 @@ class BookingCreateSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         """Custom representation with additional computed fields"""
         data = super().to_representation(instance)
+        
+        # Ensure the booking ID is always included and valid
+        data['booking_id'] = instance.id  # Add this line for explicit booking_id
         
         # Add location and service details
         if instance.location:
@@ -540,3 +546,119 @@ class PaymentStatusSerializer(serializers.Serializer):
         except booking.DoesNotExist:
             raise serializers.ValidationError(_("Booking not found."))
         return value
+
+class FlutterBookingCreateSerializer(BookingCreateSerializer):
+    """
+    Flutter-optimized booking creation serializer with standardized response format
+    """
+    
+    def to_representation(self, instance):
+        """Flutter-specific representation with consistent structure"""
+        data = super().to_representation(instance)
+        
+        # Ensure Flutter gets the expected response structure
+        flutter_response = {
+            'success': True,
+            'message': 'Booking created successfully',
+            'data': {
+                'booking_id': instance.id,
+                'id': instance.id,  # Both fields for compatibility
+                'booking_number': instance.booking_number,
+                'status': instance.status,
+                'payment_status': instance.payment_status,
+                'total_amount': str(instance.total_amount),
+                'booking_date': instance.booking_date.isoformat(),
+                'customer_name': instance.customer_name,
+                'customer_phone': instance.customer_phone,
+                'customer_email': instance.customer_email,
+                'vehicle_details': instance.vehicle_details,
+                'special_instructions': instance.special_instructions,
+                'payment_method': instance.payment_method,
+                'location_details': data.get('location_details', {}),
+                'service_details': data.get('service_details', {}),
+                'duration_minutes': data.get('duration_minutes', 0),
+                'created_at': instance.created_at.isoformat(),
+            }
+        }
+        
+        return flutter_response['data']  # Return just the data part for DRF compatibility
+    
+    
+    # modify payement initiations
+        # ...existing code...
+    
+class PaymentInitiationSerializer(serializers.Serializer):
+        """
+        Serializer for initiating payment for a booking.
+        """
+        booking_id = serializers.IntegerField(
+            help_text=_("The ID of the booking to initiate payment for.")
+        )
+        payment_method = serializers.ChoiceField(
+            choices=[
+                ('mpesa', 'M-Pesa'),
+                ('paypal', 'PayPal'),
+                ('visa', 'Visa/Card'),
+                ('cash', 'Cash')
+            ],
+            help_text=_("The payment method to use for this booking.")
+        )
+        phone_number = serializers.CharField(
+            max_length=15,
+            required=False,
+            help_text=_("Phone number for M-Pesa payments (required for M-Pesa).")
+        )
+        
+        def validate(self, data):
+            """Validate payment initiation data."""
+            booking_id = data.get('booking_id')
+            payment_method = data.get('payment_method')
+            phone_number = data.get('phone_number')
+            
+            # Check if booking exists
+            try:
+                booking_instance = booking.objects.get(id=booking_id)
+            except booking.DoesNotExist:
+                raise serializers.ValidationError(_("Booking not found."))
+            
+            # M-Pesa requires phone number
+            if payment_method == 'mpesa' and not phone_number:
+                raise serializers.ValidationError({
+                    'phone_number': _("Phone number is required for M-Pesa payments.")
+                })
+            
+            return data
+    
+class PaymentInitiationURLSerializer(serializers.Serializer):
+        """
+        Serializer for initiating payment for a booking using URL parameter for booking_id.
+        """
+        payment_method = serializers.ChoiceField(
+            choices=[
+                ('mpesa', 'M-Pesa'),
+                ('paypal', 'PayPal'),
+                ('visa', 'Visa/Card'),
+                ('cash', 'Cash')
+            ],
+            help_text=_("The payment method to use for this booking.")
+        )
+        phone_number = serializers.CharField(
+            max_length=15,
+            required=False,
+            help_text=_("Phone number for M-Pesa payments (required for M-Pesa).")
+        )
+        
+        def validate(self, data):
+            """Validate payment initiation data."""
+            payment_method = data.get('payment_method')
+            phone_number = data.get('phone_number')
+            
+            # M-Pesa requires phone number
+            if payment_method == 'mpesa' and not phone_number:
+                raise serializers.ValidationError({
+                    'phone_number': _("Phone number is required for M-Pesa payments.")
+                })
+            
+            return data
+    
+    # ...existing code...

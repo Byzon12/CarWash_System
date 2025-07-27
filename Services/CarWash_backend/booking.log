@@ -38,3 +38,89 @@ Booking created: BK202507244087 by admin16
 Booking created: BK202507243808 by admin16
 Booking created: BK202507249413 by admin16
 Booking created: BK202507242932 by admin16
+Booking created: BK202507258119 by admin16
+Booking created: BK202507251280 by admin16
+Booking deleted: BK202507258119 by admin16
+Booking deleted: BK202507212490 by admin16
+Booking deleted: BK202507243222 by admin16
+Booking deleted: BK202507251280 by admin16
+Booking deleted: BK202507242932 by admin16
+Booking created: BK202507258734 by admin16
+Booking created: BK202507257154 by admin16
+Booking created: BK202507258835 by admin16
+Booking deleted: BK202507248712 by admin16
+Booking deleted: BK202507258835 by admin16
+Booking deleted: BK202507257154 by admin16
+Booking creation error: {'booking_date': [ErrorDetail(string='Booking date must be in the future.', code='invalid')]}
+Booking created: BK202507250956 by admin16
+Booking created successfully: ID=15, Number=BK202507250956
+Booking created: BK202507258319 by admin16
+Booking created successfully: ID=16, Number=BK202507258319
+Failed to get M-Pesa access token: 400 Client Error: Bad Request for url: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials
+M-Pesa STK Push failed for BK202507258319: Access token error: 400 Client Error: Bad Request for url: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials
+M-Pesa payment initiation failed for booking BK202507258319: {'success': False, 'error': 'Access token error: 400 Client Error: Bad Request for url: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials', 'response_description': 'Payment initiation failed'}
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507258319: {'MerchantRequestID': '2959-4156-8013-8a5afda9dfd219060', 'CheckoutRequestID': 'ws_CO_250720251008273700764847', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507258319
+Booking created: BK202507258985 by admin16
+Booking created successfully: ID=17, Number=BK202507258985
+Booking deleted: BK202507258985 by admin16
+Booking created: BK202507254970 by admin16
+Booking created successfully: ID=18, Number=BK202507254970
+Booking created: BK202507255704 by admin16
+Booking created successfully: ID=19, Number=BK202507255704
+Booking created: BK202507254898 by admin16
+Booking created successfully: ID=20, Number=BK202507254898
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507254898: {'MerchantRequestID': '1472-4fc0-8bdd-8b91ee949549686', 'CheckoutRequestID': 'ws_CO_250720251048199700764847', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507254898
+Booking created: BK202507251339 by Ochieng
+Booking created successfully: ID=21, Number=BK202507251339
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507251339: {'MerchantRequestID': '8362-45a2-894d-3634011046213018', 'CheckoutRequestID': 'ws_CO_250720251500150700764847', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507251339
+Booking deleted: BK202507251339 by Ochieng
+Booking created: BK202507253993 by Ochieng
+Booking created successfully: ID=22, Number=BK202507253993
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507253993: {'MerchantRequestID': '8a62-4761-a7cb-a3b488870e034567', 'CheckoutRequestID': 'ws_CO_250720251506121700764847', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507253993
+Booking deleted: BK202507245639 by admin16
+Booking deleted: BK202507255704 by admin16
+Booking deleted: BK202507249603 by admin16
+Booking deleted: BK202507244087 by admin16
+Booking deleted: BK202507243808 by admin16
+Booking deleted: BK202507254970 by admin16
+Booking deleted: BK202507249413 by admin16
+Booking created: BK202507251841 by wilbert
+Booking created successfully: ID=23, Number=BK202507251841
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507251841: {'MerchantRequestID': 'd362-4a0d-b6cd-db69dac12bca1170', 'CheckoutRequestID': 'ws_CO_260720250057000793555995', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507251841
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507251841: {'MerchantRequestID': '8a62-4761-a7cb-a3b488870e0311384', 'CheckoutRequestID': 'ws_CO_260720250058467793555995', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507251841
+Booking deleted: BK202507253993 by Ochieng
+Booking created: BK202507264558 by Ochieng
+Booking created successfully: ID=24, Number=BK202507264558
+Booking created: BK202507268889 by Ochieng
+Booking created successfully: ID=25, Number=BK202507268889
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507268889: {'MerchantRequestID': '3778-4596-a8da-618ae777d52e69', 'CheckoutRequestID': 'ws_CO_270720250052597758898113', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507268889
+Booking deleted: BK202507264558 by Ochieng
+Booking deleted: BK202507268889 by Ochieng
+Booking created: BK202507261944 by Ochieng
+Booking created successfully: ID=26, Number=BK202507261944
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507261944: {'MerchantRequestID': 'b2c4-44f9-86cc-a88dc0ccb009646', 'CheckoutRequestID': 'ws_CO_270720250151599758898113', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507261944
+Booking created: BK202507279622 by Ochieng
+Booking created successfully: ID=27, Number=BK202507279622
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507279622: {'MerchantRequestID': '9a9a-4a8d-875e-f288831c3b981533', 'CheckoutRequestID': 'ws_CO_270720250445201700764847', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507279622
+Booking deleted: BK202507261944 by Ochieng
+Booking deleted: BK202507258734 by admin16
+Booking deleted: BK202507250956 by admin16
+Booking deleted: BK202507258319 by admin16

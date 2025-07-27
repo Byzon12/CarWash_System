@@ -14,16 +14,19 @@ from .serializer import (
     BookingCreateSerializer, 
     BookingDetailSerializer, 
     BookingUpdateSerializer,
-    PaymentInitiationSerializer,  # Add this import
-    PaymentStatusSerializer       # Add this import
+    FlutterBookingCreateSerializer,  # Add this import
+    PaymentInitiationSerializer,
+    PaymentInitiationURLSerializer,
+    PaymentStatusSerializer,
 )
+
 from .payment_gateways.mpesa import mpesa_service
 
 logger = logging.getLogger(__name__)
 
 class BookingCreateView(generics.CreateAPIView):
     """Enhanced booking creation with proper validation and payment integration"""
-    serializer_class = BookingCreateSerializer
+    serializer_class = FlutterBookingCreateSerializer  # Use Flutter-optimized serializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
@@ -32,31 +35,92 @@ class BookingCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         # Customer profile is set in the serializer
-        booking = serializer.save()
+        booking_instance = serializer.save()
+        
+        # Auto-calculate and award loyalty points for bookings above KES 2500
+        try:
+            customer_profile = booking_instance.customer
+            booking_amount = float(booking_instance.total_amount)
+            
+            if booking_amount > 2500:
+                points_earned = customer_profile.award_booking_points(
+                    booking_amount=booking_amount,
+                    booking_id=booking_instance.id
+                )
+                if points_earned > 0:
+                    logger.info(f"Awarded {points_earned} loyalty points to {customer_profile.user.username} for booking {booking_instance.booking_number}")
+                    
+        except Exception as e:
+            logger.error(f"Error calculating loyalty points for booking {booking_instance.id}: {str(e)}")
         
         # Log booking creation
-        logger.info(f"Booking created: {booking.booking_number} by {self.request.user.username}")
+        logger.info(f"Booking created: {booking_instance.booking_number} by {self.request.user.username}")
         
-        return booking
+        return booking_instance
 
     def create(self, request, *args, **kwargs):
-        """Override create to handle payment initialization"""
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        
-        # Create booking
-        booking = self.perform_create(serializer)
-        
-        response_data = self.get_serializer(booking).data
-        
-        # Initialize payment if requested
-        initialize_payment = request.data.get('initialize_payment', False)
-        if initialize_payment and booking.payment_method == 'mpesa':
-            payment_result = initiate_mpesa_payment(booking)
-            response_data['payment_initialization'] = payment_result
-        
-        headers = self.get_success_headers(response_data)
-        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+        """Override create to handle payment initialization and ensure booking ID is returned"""
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            # Create booking
+            booking_instance = self.perform_create(serializer)
+            
+            # Ensure the booking was created successfully and has a valid ID
+            if not booking_instance or not booking_instance.id:
+                logger.error("Booking was created but has no valid ID")
+                return Response({
+                    'success': False,
+                    'error': 'Booking creation failed - invalid booking ID',
+                    'message': 'Failed to create booking properly'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            response_data = self.get_serializer(booking_instance).data
+            
+            # Ensure booking_id is explicitly set in response
+            response_data['booking_id'] = booking_instance.id
+            response_data['id'] = booking_instance.id
+            
+            # Add loyalty points information to response
+            customer_profile = booking_instance.customer
+            response_data['loyalty_info'] = {
+                'current_points': customer_profile.loyalty_points,
+                'loyalty_tier': customer_profile.get_loyalty_tier(),
+                'points_earned_this_booking': 0  # Will be updated if points were earned
+            }
+            
+            # Check if loyalty points were earned for this booking
+            booking_amount = float(booking_instance.total_amount)
+            if booking_amount > 2500:
+                points_earned = customer_profile.calculate_booking_loyalty_points(booking_amount)
+                response_data['loyalty_info']['points_earned_this_booking'] = points_earned
+            
+            # Initialize payment if requested
+            initialize_payment = request.data.get('initialize_payment', False)
+            if initialize_payment and booking_instance.payment_method == 'mpesa':
+                payment_result = initiate_mpesa_payment(booking_instance)
+                response_data['payment_initialization'] = payment_result
+            
+            # Flutter-friendly response format
+            flutter_response = {
+                'success': True,
+                'message': 'Booking created successfully',
+                'data': response_data
+            }
+            
+            headers = self.get_success_headers(response_data)
+            logger.info(f"Booking created successfully: ID={booking_instance.id}, Number={booking_instance.booking_number}")
+            
+            return Response(flutter_response, status=status.HTTP_201_CREATED, headers=headers)
+            
+        except Exception as e:
+            logger.error(f"Booking creation error: {str(e)}")
+            return Response({
+                'success': False,
+                'error': 'Booking creation failed',
+                'message': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class BookingListView(generics.ListAPIView):
     """List bookings for authenticated customer with filtering"""
@@ -501,3 +565,167 @@ class PaymentStatusView(generics.GenericAPIView):
             'payment_reference': booking.payment_reference,
             'mpesa_transaction_id': getattr(booking, 'mpesa_transaction_id', None)
         })
+        
+#api view to handle deletion of bookings
+class BookingDeleteView(generics.DestroyAPIView):
+    """Delete a booking"""
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self):
+        booking_id = self.kwargs.get('pk')
+        customer_profile = self.request.user.Customer_profile
+        booking_instance = get_object_or_404(booking, id=booking_id, customer=customer_profile)
+        return booking_instance
+
+    def perform_destroy(self, instance):
+        # Log the deletion
+        logger.info(f"Booking deleted: {instance.booking_number} by {self.request.user.username}")
+        
+        # Delete the booking
+        instance.delete()
+        
+        return Response({'message': 'Booking deleted successfully'}, status=status.HTTP_204_NO_CONTENT)
+    
+    #modify payment initiations
+        # ...existing imports...
+    
+    from .serializer import (
+        BookingCreateSerializer, 
+        BookingDetailSerializer, 
+        BookingUpdateSerializer,
+        FlutterBookingCreateSerializer,
+        PaymentInitiationSerializer,
+        PaymentInitiationURLSerializer,  # Add this import
+        PaymentStatusSerializer,
+    )
+    
+    # ...existing code...
+    
+    class PaymentInitiationView(generics.GenericAPIView):
+        """Initiate payment for a booking using booking_id from URL"""
+        serializer_class = PaymentInitiationURLSerializer
+        permission_classes = [IsAuthenticated]
+        lookup_field = 'pk'
+    
+        def get_object(self):
+            """Get the booking object from URL parameter"""
+            booking_id = self.kwargs.get('pk')
+            try:
+                customer_profile = self.request.user.Customer_profile
+                return booking.objects.get(id=booking_id, customer=customer_profile)
+            except booking.DoesNotExist:
+                return None
+    
+        def post(self, request, pk):
+            """Initiate payment for a specific booking"""
+            # Get the booking from URL parameter
+            booking_instance = self.get_object()
+            
+            if not booking_instance:
+                return Response({
+                    'success': False,
+                    'error': 'Booking not found or you do not have permission to access it.',
+                    'message': 'Invalid booking ID or unauthorized access'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Validate the request data (payment_method, phone_number)
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            payment_method = serializer.validated_data['payment_method']
+            phone_number = serializer.validated_data.get('phone_number')
+            
+            # Check if booking can accept payment
+            if booking_instance.payment_status == 'paid':
+                return Response({
+                    'success': False,
+                    'error': 'Payment already completed for this booking',
+                    'message': 'This booking has already been paid for'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            if booking_instance.status == 'cancelled':
+                return Response({
+                    'success': False,
+                    'error': 'Cannot process payment for cancelled booking',
+                    'message': 'This booking has been cancelled'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Update payment method and phone number if provided
+            booking_instance.payment_method = payment_method
+            if phone_number:
+                booking_instance.customer_phone = phone_number
+            booking_instance.save()
+    
+            # Initiate payment based on method
+            try:
+                if payment_method == 'mpesa':
+                    result = initiate_mpesa_payment(booking_instance)
+                elif payment_method == 'paypal':
+                    result = initiate_paypal_payment(booking_instance)
+                elif payment_method == 'visa':
+                    result = initiate_visa_payment(booking_instance)
+                else:
+                    return Response({
+                        'success': False,
+                        'error': 'Unsupported payment method',
+                        'message': f'Payment method {payment_method} is not supported'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Add booking information to the result
+                result['booking_id'] = booking_instance.id
+                result['booking_number'] = booking_instance.booking_number
+                result['amount'] = str(booking_instance.total_amount)
+                
+                return Response(result)
+                
+            except Exception as e:
+                logger.error(f"Payment initiation error for booking {booking_instance.id}: {str(e)}")
+                return Response({
+                    'success': False,
+                    'error': 'Payment initiation failed',
+                    'message': 'Unable to process payment request. Please try again.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    # Keep the old view for backward compatibility
+    class PaymentInitiationLegacyView(generics.GenericAPIView):
+        """Legacy payment initiation view (booking_id in request body)"""
+        serializer_class = PaymentInitiationSerializer
+        permission_classes = [IsAuthenticated]
+    
+        def post(self, request):
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            
+            booking_id = serializer.validated_data['booking_id']
+            payment_method = serializer.validated_data['payment_method']
+            phone_number = serializer.validated_data.get('phone_number')
+            
+            try:
+                customer_profile = request.user.Customer_profile
+                booking_instance = booking.objects.get(id=booking_id, customer=customer_profile)
+            except booking.DoesNotExist:
+                return Response({
+                    'error': 'Booking not found or you do not have permission to access it.'
+                }, status=status.HTTP_404_NOT_FOUND)
+            
+            # Update payment method and phone number if provided
+            booking_instance.payment_method = payment_method
+            if phone_number:
+                booking_instance.customer_phone = phone_number
+            booking_instance.save()
+    
+            # Initiate payment based on method
+            if payment_method == 'mpesa':
+                result = initiate_mpesa_payment(booking_instance)
+            elif payment_method == 'paypal':
+                result = initiate_paypal_payment(booking_instance)
+            elif payment_method == 'visa':
+                result = initiate_visa_payment(booking_instance)
+            else:
+                return Response({
+                    'error': 'Unsupported payment method'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            return Response(result)
+    
+    

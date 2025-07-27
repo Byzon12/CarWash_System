@@ -1182,3 +1182,159 @@ class EnhancedUserLocationListSerializer(serializers.Serializer):
                 } if user_lat and user_lng else None
             }
         }
+
+
+# Loyalty Points Serializers
+class LoyaltyPointsTransactionSerializer(serializers.ModelSerializer):
+    """Serializer for loyalty points transaction history"""
+    
+    class Meta:
+        model = CustomerProfile  # Import this from models
+        fields = ['transaction_type', 'points_earned', 'booking_amount', 
+                 'booking_id', 'description', 'created_at']
+        
+    def to_representation(self, instance):
+        # Custom representation for transaction data
+        from .models import LoyaltyPointsTransaction
+        if isinstance(instance, LoyaltyPointsTransaction):
+            return {
+                'transaction_type': instance.transaction_type,
+                'points_earned': instance.points_earned,
+                'booking_amount': str(instance.booking_amount) if instance.booking_amount else None,
+                'booking_id': instance.booking_id,
+                'description': instance.description,
+                'created_at': instance.created_at.isoformat(),
+                'formatted_date': instance.created_at.strftime('%B %d, %Y at %I:%M %p')
+            }
+        return super().to_representation(instance)
+
+
+class LoyaltyPointsStatsSerializer(serializers.Serializer):
+    """Serializer for loyalty points statistics"""
+    
+    def to_representation(self, customer_profile):
+        from .models import LoyaltyPointsTransaction
+        
+        # Get transaction statistics
+        transactions = customer_profile.loyalty_transactions.all()
+        
+        total_earned = transactions.filter(points_earned__gt=0).aggregate(
+            total=Sum('points_earned')
+        )['total'] or 0
+        
+        total_redeemed = abs(transactions.filter(points_earned__lt=0).aggregate(
+            total=Sum('points_earned')
+        )['total'] or 0)
+        
+        booking_points = transactions.filter(transaction_type='booking').aggregate(
+            total=Sum('points_earned')
+        )['total'] or 0
+        
+        login_points = transactions.filter(transaction_type='login').aggregate(
+            total=Sum('points_earned')
+        )['total'] or 0
+        
+        # Get recent transactions
+        recent_transactions = LoyaltyPointsTransactionSerializer(
+            transactions[:10], many=True
+        ).data
+        
+        return {
+            'current_points': customer_profile.loyalty_points,
+            'loyalty_tier': customer_profile.get_loyalty_tier(),
+            'total_earned': total_earned,
+            'total_redeemed': total_redeemed,
+            'net_points': total_earned - total_redeemed,
+            'points_breakdown': {
+                'from_bookings': booking_points,
+                'from_logins': login_points,
+                'from_bonuses': total_earned - booking_points - login_points
+            },
+            'tier_benefits': self.get_tier_benefits(customer_profile.get_loyalty_tier()),
+            'next_tier_progress': self.get_next_tier_progress(customer_profile),
+            'recent_transactions': recent_transactions,
+            'total_transactions': transactions.count()
+        }
+    
+    def get_tier_benefits(self, tier):
+        """Get benefits for loyalty tier"""
+        benefits = {
+            'Bronze': ['Basic car wash discounts', 'Birthday bonus'],
+            'Silver': ['5% discount on all services', 'Priority booking', 'Monthly bonus points'],
+            'Gold': ['10% discount on all services', 'Free service every 10 bookings', 'VIP support'],
+            'Platinum': ['15% discount on all services', 'Complimentary premium services', 'Dedicated account manager']
+        }
+        return benefits.get(tier, [])
+    
+    def get_next_tier_progress(self, customer_profile):
+        """Calculate progress to next tier"""
+        current_tier = customer_profile.get_loyalty_tier()
+        points_to_next = customer_profile.get_points_to_next_tier()
+        
+        tier_thresholds = {
+            'Bronze': 10000,
+            'Silver': 25000,
+            'Gold': 50000,
+            'Platinum': None
+        }
+        
+        if current_tier == 'Platinum':
+            return {
+                'next_tier': None,
+                'points_needed': 0,
+                'progress_percentage': 100,
+                'message': 'You have reached the highest tier!'
+            }
+        
+        next_tiers = {'Bronze': 'Silver', 'Silver': 'Gold', 'Gold': 'Platinum'}
+        next_tier = next_tiers.get(current_tier)
+        current_spent = float(customer_profile.total_spent)
+        next_threshold = tier_thresholds[current_tier]
+        
+        progress_percentage = (current_spent / next_threshold) * 100 if next_threshold else 100
+        
+        return {
+            'next_tier': next_tier,
+            'points_needed': int(points_to_next),
+            'progress_percentage': min(round(progress_percentage, 1), 100),
+            'message': f'Spend KES {int(points_to_next)} more to reach {next_tier} tier'
+        }
+
+
+class FlutterLoyaltyDashboardSerializer(serializers.Serializer):
+    """Complete loyalty dashboard for Flutter app"""
+    
+    def to_representation(self, customer_profile):
+        stats_serializer = LoyaltyPointsStatsSerializer()
+        
+        return {
+            'success': True,
+            'data': {
+                'customer_info': {
+                    'username': customer_profile.user.username,
+                    'email': customer_profile.user.email,
+                    'member_since': customer_profile.user.date_joined.strftime('%B %Y')
+                },
+                'loyalty_stats': stats_serializer.to_representation(customer_profile),
+                'quick_actions': [
+                    {
+                        'title': 'Book a Service',
+                        'description': 'Earn points on bookings above KES 2500',
+                        'icon': 'car_wash',
+                        'action': 'book_service'
+                    },
+                    {
+                        'title': 'View History',
+                        'description': 'Check your points transaction history',
+                        'icon': 'history',
+                        'action': 'view_history'
+                    },
+                    {
+                        'title': 'Redeem Points',
+                        'description': 'Use your points for discounts',
+                        'icon': 'redeem',
+                        'action': 'redeem_points'
+                    }
+                ]
+            }
+        }
