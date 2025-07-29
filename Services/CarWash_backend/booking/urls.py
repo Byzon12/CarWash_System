@@ -7,6 +7,7 @@ urlpatterns = [
     # Customer booking management
     path('create/', views.BookingCreateView.as_view(), name='booking-create'),
     path('list/', views.BookingListView.as_view(), name='booking-list'),
+    path('history/', views.BookingHistoryView.as_view(), name='booking-history'),
     path('<int:pk>/', views.BookingDetailView.as_view(), name='booking-detail'),
     path('<int:pk>/update/', views.BookingUpdateView.as_view(), name='booking-update'),
     path('<int:pk>/cancel/', views.BookingCancelView.as_view(), name='booking-cancel'),

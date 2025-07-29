@@ -20,8 +20,14 @@ def create_customer_profile(sender, instance, created, **kwargs):
             phone_number=instance.profile.phone_number if hasattr(instance, 'profile') else None,
             address=instance.profile.address if hasattr(instance, 'profile') else None
           )
-    # send registration email
-    send_registration_email(instance)
+        # Send registration email only when user is created, not updated
+        # Temporarily disabled email sending functionality
+        # try:
+        #     send_registration_email(instance)
+        # except Exception as e:
+        #     # Don't fail registration if email fails
+        #     print(f"Failed to send registration email to {instance.email}: {str(e)}")
+        #     pass
 
 @receiver(post_save, sender=CustomerProfile)
 def log_profile_creation(sender, instance, created, **kwargs):

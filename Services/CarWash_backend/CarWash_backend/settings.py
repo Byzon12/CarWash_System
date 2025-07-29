@@ -13,9 +13,11 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 from pathlib import Path
 import os
 from datetime import timedelta
+import dj_database_url  # Import dj-database-url for database configuration
 # Load environment variables from a .env file
 
-from dotenv import load_dotenv # type: ignore
+from dotenv import load_dotenv
+from softdelete.settings import DATABASES # type: ignore
 
 load_dotenv()
 
@@ -27,7 +29,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-kf+w=&$zt$hd9$)v13t+@9@gai=#%pzvs_h1-710m&%h*!*921'
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', default='django-insecure-kf+w=&$zt$hd9$)v13t+@9@gai=#%pzvs_h1-710m&%h*!*921')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -149,7 +151,7 @@ WSGI_APPLICATION = 'CarWash_backend.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
+"""
 DATABASES = {
     'default': {
     #    'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants for multi-tenancy
@@ -162,9 +164,11 @@ DATABASES = {
         'PORT': '5433',  # Default PostgreSQL port is 5432, change if needed
         'ATOMIC_REQUESTS': True,  # Optional: Use atomic requests for better transaction handling
     }      
-}
+}"""
+# Use dj-database-url for dynamic database configuration
+DATABASES['default'] = dj_database_url.parse("postgresql://carwas_db1_user:ifYxPfGk1M6JdBWYsZi5jJePjNMcsXKW@dpg-d24b9ip5pdvs73858o0g-a.oregon-postgres.render.com/carwas_db1")
 
-
+#postgresql://carwas_db1_user:ifYxPfGk1M6JdBWYsZi5jJePjNMcsXKW@dpg-d24b9ip5pdvs73858o0g-a.oregon-postgres.render.com/carwas_db1
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
 

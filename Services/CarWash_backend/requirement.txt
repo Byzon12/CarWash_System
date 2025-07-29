@@ -23,3 +23,5 @@ drf-yasg
 pandas 
 reportlab
  xlsxwriter
+ dj-database-url
+django-extensions

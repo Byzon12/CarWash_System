@@ -150,6 +150,106 @@ class BookingListView(generics.ListAPIView):
         
         return queryset
 
+class BookingHistoryView(generics.ListAPIView):
+    """Get latest booking history for authenticated customer with comprehensive details"""
+    serializer_class = BookingDetailSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        customer_profile = self.request.user.Customer_profile
+        # Default to last 50 bookings, ordered by most recent
+        queryset = booking.objects.filter(customer=customer_profile).order_by('-created_at')
+        
+        # Limit parameter for how many recent bookings to show
+        limit = self.request.query_params.get('limit', 20)
+        try:
+            limit = int(limit)
+            if limit > 100:  # Max limit to prevent performance issues
+                limit = 100
+        except ValueError:
+            limit = 20
+            
+        return queryset[:limit]
+    
+    def list(self, request, *args, **kwargs):
+        """Enhanced list response with additional statistics"""
+        try:
+            queryset = self.get_queryset()
+            customer_profile = request.user.Customer_profile
+            
+            # Get all customer bookings for statistics
+            all_bookings = booking.objects.filter(customer=customer_profile)
+            
+            # Serialize booking data
+            serializer = self.get_serializer(queryset, many=True)
+            
+            # Calculate statistics
+            total_bookings = all_bookings.count()
+            completed_bookings = all_bookings.filter(status='completed').count()
+            cancelled_bookings = all_bookings.filter(status='cancelled').count()
+            pending_bookings = all_bookings.filter(status__in=['pending', 'confirmed']).count()
+            
+            # Calculate total spent
+            from django.db.models import Sum
+            total_spent = all_bookings.filter(
+                payment_status='completed'
+            ).aggregate(total=Sum('total_amount'))['total'] or 0
+            
+            # Recent activity (last 30 days)
+            from datetime import datetime, timedelta
+            thirty_days_ago = datetime.now() - timedelta(days=30)
+            recent_bookings = all_bookings.filter(created_at__gte=thirty_days_ago).count()
+            
+            # Most used service
+            most_used_service = None
+            if total_bookings > 0:
+                from django.db.models import Count
+                service_stats = all_bookings.values(
+                    'location_service__service__name'
+                ).annotate(
+                    count=Count('id')
+                ).order_by('-count').first()
+                
+                if service_stats:
+                    most_used_service = {
+                        'name': service_stats['location_service__service__name'],
+                        'count': service_stats['count']
+                    }
+            
+            response_data = {
+                'success': True,
+                'message': 'Booking history retrieved successfully',
+                'data': {
+                    'bookings': serializer.data,
+                    'statistics': {
+                        'total_bookings': total_bookings,
+                        'completed_bookings': completed_bookings,
+                        'cancelled_bookings': cancelled_bookings,
+                        'pending_bookings': pending_bookings,
+                        'total_spent': float(total_spent),
+                        'recent_bookings_30_days': recent_bookings,
+                        'most_used_service': most_used_service,
+                        'loyalty_points': customer_profile.loyalty_points,
+                        'loyalty_tier': customer_profile.get_loyalty_tier()
+                    },
+                    'pagination': {
+                        'limit': len(queryset),
+                        'total_available': total_bookings,
+                        'showing_latest': True
+                    }
+                }
+            }
+            
+            return Response(response_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error retrieving booking history for {request.user.username}: {str(e)}")
+            return Response({
+                'success': False,
+                'message': 'Error retrieving booking history',
+                'error': str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class BookingDetailView(generics.RetrieveAPIView):
     """Get detailed booking information"""
     serializer_class = BookingDetailSerializer

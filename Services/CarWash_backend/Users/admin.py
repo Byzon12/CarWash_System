@@ -108,17 +108,17 @@ class LocationAdmin(admin.ModelAdmin):
         """
         Disable the add permission for Location.
         """
-        return False
+        return True
     def has_change_permission(self, request, obj=None):
         """
         Disable the change permission for Location.
         """
-        return False
+        return True
     def has_delete_permission(self, request, obj=None):
         """
         Disable the delete permission for Location.
         """
-        return False
+        return True
 # Registering services in the admin interface
 
 @admin.register(Service)

@@ -6,6 +6,7 @@ from Location.models import Location, LocationService, Service
 from Users.models import CustomerProfile
 import uuid
 from datetime import timedelta
+from django.utils import timezone
 
 
 

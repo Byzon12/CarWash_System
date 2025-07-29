@@ -124,3 +124,24 @@ Booking deleted: BK202507261944 by Ochieng
 Booking deleted: BK202507258734 by admin16
 Booking deleted: BK202507250956 by admin16
 Booking deleted: BK202507258319 by admin16
+Booking created: BK202507274820 by Ochieng
+Booking created successfully: ID=28, Number=BK202507274820
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507274820: {'MerchantRequestID': 'e02b-436e-9773-c97354f3811f24915', 'CheckoutRequestID': 'ws_CO_270720251657472758898113', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507274820
+Booking creation error: {'booking_date': [ErrorDetail(string='Booking date must be in the future.', code='invalid')]}
+Booking creation error: {'booking_date': [ErrorDetail(string='Booking date must be in the future.', code='invalid')]}
+Booking created: BK202507286578 by kieti
+Booking created successfully: ID=29, Number=BK202507286578
+Failed to get M-Pesa access token: HTTPSConnectionPool(host='sandbox.safaricom.co.ke', port=443): Max retries exceeded with url: /oauth/v1/generate?grant_type=client_credentials (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000021DC91A41A0>: Failed to resolve 'sandbox.safaricom.co.ke' ([Errno 11001] getaddrinfo failed)"))
+M-Pesa STK Push failed for BK202507286578: Access token error: HTTPSConnectionPool(host='sandbox.safaricom.co.ke', port=443): Max retries exceeded with url: /oauth/v1/generate?grant_type=client_credentials (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000021DC91A41A0>: Failed to resolve 'sandbox.safaricom.co.ke' ([Errno 11001] getaddrinfo failed)"))
+M-Pesa payment initiation failed for booking BK202507286578: {'success': False, 'error': 'Access token error: HTTPSConnectionPool(host=\'sandbox.safaricom.co.ke\', port=443): Max retries exceeded with url: /oauth/v1/generate?grant_type=client_credentials (Caused by NameResolutionError("<urllib3.connection.HTTPSConnection object at 0x0000021DC91A41A0>: Failed to resolve \'sandbox.safaricom.co.ke\' ([Errno 11001] getaddrinfo failed)"))', 'response_description': 'Payment initiation failed'}
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507286578: {'MerchantRequestID': '0d25-4804-ab7d-fb101aa12d4337820', 'CheckoutRequestID': 'ws_CO_280720251032573759417848', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507286578
+Booking deleted: BK202507286578 by kieti
+Booking created: BK202507280915 by kieti
+Booking created successfully: ID=30, Number=BK202507280915
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507280915: {'MerchantRequestID': '0d25-4804-ab7d-fb101aa12d4337927', 'CheckoutRequestID': 'ws_CO_280720251040083700403398', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507280915
