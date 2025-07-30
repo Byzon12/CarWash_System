@@ -145,3 +145,19 @@ Booking created successfully: ID=30, Number=BK202507280915
 Successfully obtained M-Pesa access token
 M-Pesa STK Push initiated for BK202507280915: {'MerchantRequestID': '0d25-4804-ab7d-fb101aa12d4337927', 'CheckoutRequestID': 'ws_CO_280720251040083700403398', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
 M-Pesa payment initiated for booking BK202507280915
+Booking created: BK202507302421 by admin16
+Booking created successfully: ID=31, Number=BK202507302421
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507302421: {'MerchantRequestID': '9a9a-4a8d-875e-f288831c3b9862510', 'CheckoutRequestID': 'ws_CO_300720251217248112192208', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507302421
+Booking created: BK202507301257 by admin16
+Booking created successfully: ID=32, Number=BK202507301257
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507301257: {'MerchantRequestID': 'c7e4-42c0-b476-32053384902b12751', 'CheckoutRequestID': 'ws_CO_300720251251561700764847', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507301257
+Booking creation error: {'booking_date': [ErrorDetail(string='Booking date must be in the future.', code='invalid')]}
+Booking created: BK202507302262 by kfkfkg
+Booking created successfully: ID=33, Number=BK202507302262
+Successfully obtained M-Pesa access token
+M-Pesa STK Push initiated for BK202507302262: {'MerchantRequestID': 'c7e4-42c0-b476-32053384902b16725', 'CheckoutRequestID': 'ws_CO_300720251525092700403398', 'ResponseCode': '0', 'ResponseDescription': 'Success. Request accepted for processing', 'CustomerMessage': 'Success. Request accepted for processing'}
+M-Pesa payment initiated for booking BK202507302262

@@ -2,7 +2,7 @@ from django.contrib import admin
 from Tenant.models import TenantProfile,Tenant, Task
 from booking.models import booking
 from Staff.models import StaffProfile,StaffRole
-from Location.models import Location, Service, LocationService
+from Location.models import Location, Service, LocationService,Favorite
 from Staff.models import StaffProfile, StaffRole, Staff, WalkInCustomer, WalkInTask, WalkInPayment
 
 from .models import CustomerProfile, AuditLog
@@ -514,3 +514,10 @@ class ReportBookmarkAdmin(admin.ModelAdmin):
     list_display = ['name', 'tenant', 'is_favorite', 'access_count', 'last_accessed', 'created_by']
     list_filter = ['is_favorite', 'last_accessed', 'created_at']
     search_fields = ['name', 'tenant__name']
+    
+    
+@admin.register(Favorite)
+class FavoriteAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'location', 'created_at']
+    list_filter = ['user', 'location', 'created_at']
+    search_fields = ['user__name', 'location__name']

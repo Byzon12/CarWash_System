@@ -151,7 +151,7 @@ WSGI_APPLICATION = 'CarWash_backend.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-"""
+
 DATABASES = {
     'default': {
     #    'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants for multi-tenancy
@@ -164,9 +164,9 @@ DATABASES = {
         'PORT': '5433',  # Default PostgreSQL port is 5432, change if needed
         'ATOMIC_REQUESTS': True,  # Optional: Use atomic requests for better transaction handling
     }      
-}"""
+}
 # Use dj-database-url for dynamic database configuration
-DATABASES['default'] = dj_database_url.parse("postgresql://carwas_db1_user:ifYxPfGk1M6JdBWYsZi5jJePjNMcsXKW@dpg-d24b9ip5pdvs73858o0g-a.oregon-postgres.render.com/carwas_db1")
+#DATABASES['default'] = dj_database_url.parse("postgresql://carwas_db1_user:ifYxPfGk1M6JdBWYsZi5jJePjNMcsXKW@dpg-d24b9ip5pdvs73858o0g-a.oregon-postgres.render.com/carwas_db1")
 
 #postgresql://carwas_db1_user:ifYxPfGk1M6JdBWYsZi5jJePjNMcsXKW@dpg-d24b9ip5pdvs73858o0g-a.oregon-postgres.render.com/carwas_db1
 # Password validation
