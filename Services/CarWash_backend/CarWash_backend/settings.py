@@ -152,19 +152,31 @@ WSGI_APPLICATION = 'CarWash_backend.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+"""
 DATABASES = {
     'default': {
-    #    'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants for multi-tenancy
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',  # Use
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'carwas_db1',
+        'USER': 'carwas_db1_user',
+        'PASSWORD': 'ifYxPfGk1M6JdBWYsZi5jJePjNMcsXKW',
+        'HOST': 'dpg-d24b9ip5pdvs73858o0g-a.oregon-postgres.render.com',
+        'PORT': '5432',
+    }
+}
+"""
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django_tenants.postgresql_backend',  # Use django-tenants for multi-tenancy
         'NAME': 'CarWash_db2',
         'USER': 'postgres',
-        # Use your actual database password here
         'PASSWORD': 'Byzone12',
         'HOST': 'localhost',
         'PORT': '5433',  # Default PostgreSQL port is 5432, change if needed
         'ATOMIC_REQUESTS': True,  # Optional: Use atomic requests for better transaction handling
-    }      
+    }
 }
+
 # Use dj-database-url for dynamic database configuration
 #DATABASES['default'] = dj_database_url.parse("postgresql://carwas_db1_user:ifYxPfGk1M6JdBWYsZi5jJePjNMcsXKW@dpg-d24b9ip5pdvs73858o0g-a.oregon-postgres.render.com/carwas_db1")
 
@@ -225,7 +237,8 @@ AUTHENTICATION_BACKENDS = [
 ]
 
 
-#mail settings
+
+
 
 #email back-end
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -237,7 +250,7 @@ EMAIL_HOST_PASSWORD = 'mxvxvpwovnlfsvgq'  # Use App Password if 2FA is enabled
 # Default from email
 DEFAULT_FROM_EMAIL = 'byzoneochieng@gmail.com'
 
-
+#postgresql://carwas_db1_user:ifYxPfGk1M6JdBWYsZi5jJePjNMcsXKW@dpg-d24b9ip5pdvs73858o0g-a.oregon-postgres.render.com/carwas_db1
 # 'django_tenants.middleware.TenantMiddleware' can be added to the main MIDDLEWARE list above if needed.
 
 
@@ -284,6 +297,10 @@ LOGGING = {
 }
 
 # Find your current ALLOWED_HOSTS and update it
+CSRF_TRUSTED_ORIGINS = [
+    'https://69bf1260a484.ngrok-free.app',
+]
+
 ALLOWED_HOSTS = ["*"]
 
 # Update CORS settings for cross-origin requests
@@ -305,4 +322,8 @@ CORS_ALLOW_HEADERS = [
 ]
 
 CORS_ALLOW_CREDENTIALS = True
+# settings.py
+CSRF_TRUSTED_ORIGINS = [
+    'https://abc123.ngrok.io',
+]
 

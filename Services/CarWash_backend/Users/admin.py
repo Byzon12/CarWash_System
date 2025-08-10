@@ -2,10 +2,10 @@ from django.contrib import admin
 from Tenant.models import TenantProfile,Tenant, Task
 from booking.models import booking
 from Staff.models import StaffProfile,StaffRole
-from Location.models import Location, Service, LocationService,Favorite
+from Location.models import Location, Service, LocationService
 from Staff.models import StaffProfile, StaffRole, Staff, WalkInCustomer, WalkInTask, WalkInPayment
 
-from .models import CustomerProfile, AuditLog
+from .models import CustomerProfile, AuditLog, Favorite
 from Tenant.models import CarCheckIn
 from Report_Analysis.models import  (
     ReportTemplate, GeneratedReport, ReportSchedule, AnalyticsSnapshot,

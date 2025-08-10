@@ -8,7 +8,7 @@ from .serializer import (
     LocationSerializer, LocationUpdateSerializer, ServiceSerializer, 
     LocationServiceSerializer
 )
-from .models import Location, Service, LocationService, Favorite
+from .models import Location, Service, LocationService
 from django.db import transaction
 
 class LocationCreateView(generics.CreateAPIView):
@@ -558,39 +558,3 @@ class LocationServiceDeleteView(generics.DestroyAPIView):
                 'message': 'An error occurred while deleting the service package',
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-from rest_framework import generics, permissions, status
-from rest_framework.response import Response
-from .models import Favorite, Location
-from .serializer import FavoriteSerializer
-
-class AddFavoriteView(generics.CreateAPIView):
-    serializer_class = FavoriteSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        location_id = request.data.get('location')
-        location = Location.objects.get(id=location_id)
-        favorite, created = Favorite.objects.get_or_create(user=request.user, location=location)
-        if not created:
-            return Response({'detail': 'Already favorited.'}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = self.get_serializer(favorite)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-class RemoveFavoriteView(generics.DestroyAPIView):
-    permission_classes = [permissions.IsAuthenticated]
-
-    def delete(self, request, *args, **kwargs):
-        location_id = request.data.get('location')
-        favorite = Favorite.objects.filter(user=request.user, location_id=location_id).first()
-        if favorite:
-            favorite.delete()
-            return Response({'detail': 'Removed from favorites.'}, status=status.HTTP_204_NO_CONTENT)
-        return Response({'detail': 'Favorite not found.'}, status=status.HTTP_404_NOT_FOUND)
-
-class ListFavoritesView(generics.ListAPIView):
-    serializer_class = FavoriteSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return Favorite.objects.filter(user=self.request.user)

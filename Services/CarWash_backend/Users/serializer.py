@@ -23,6 +23,9 @@ from django.db.models import Sum, Count, Avg, Q
 from decimal import Decimal
 import math
 
+
+#from Users.models import Favorite
+
 def validate_email(value):
     raise NotImplementedError
 
@@ -1338,3 +1341,12 @@ class FlutterLoyaltyDashboardSerializer(serializers.Serializer):
                 ]
             }
         }
+
+
+
+
+class FavoriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        from Users.models import Favorite
+        model = Favorite
+        fields = ['id', 'user', 'location', 'created_at']

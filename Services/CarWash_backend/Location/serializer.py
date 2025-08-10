@@ -8,7 +8,6 @@ from Staff.models import StaffProfile, StaffRole
 from django.contrib.auth.hashers import check_password
 from Location.models import Location, Service, LocationService
 from decimal import Decimal
-from .models import Favorite
 
 # Enhanced serializer for location creation with better mobile support
 class LocationSerializer(serializers.ModelSerializer):
@@ -530,8 +529,3 @@ class LocationServiceSerializer(serializers.ModelSerializer):
         
         return instance
 
-
-class FavoriteSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Favorite
-        fields = ['id', 'user', 'location', 'created_at']

@@ -11,6 +11,8 @@ from .views import (
     LoyaltyPointsDashboardView, LoyaltyPointsHistoryView, 
     redeem_loyalty_points, loyalty_tier_info
    # search_locations, location_details, 
+   #add favorites views
+    , AddFavoriteView, RemoveFavoriteView, ListFavoritesView
 )
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -54,4 +56,9 @@ urlpatterns = [
  #  path('locations/popular/', PopularLocationsView.as_view(), name='popular_locations'),
    #path('locations/search/', search_locations, name='search_locations'),
     #path('locations/<int:location_id>/', location_details, name='location_details'),
+    
+    
+    path('favorites/add/', AddFavoriteView.as_view(), name='add-favorite'),
+    path('favorites/remove/', RemoveFavoriteView.as_view(), name='remove-favorite'),
+    path('favorites/', ListFavoritesView.as_view(), name='list-favorites'),
 ]

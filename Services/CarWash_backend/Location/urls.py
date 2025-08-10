@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import LocationActivateView, LocationCreateView, LocationUpdateView,LocationDeleteView, ServiceCreateView, ServiceUpdateView, ServiceDeleteView, ServiceDeleteView, LocationServiceCreateView, LocationServiceDeleteView, LocationServiceListView,LocationServiceDetailView, LocationListView,ServiceListView, LocationActivateView, AddFavoriteView, RemoveFavoriteView, ListFavoritesView
+from .views import LocationActivateView, LocationCreateView, LocationUpdateView,LocationDeleteView, ServiceCreateView, ServiceUpdateView, ServiceDeleteView, ServiceDeleteView, LocationServiceCreateView, LocationServiceDeleteView, LocationServiceListView,LocationServiceDetailView, LocationListView,ServiceListView, LocationActivateView
 
 urlpatterns = [
     path('create/', LocationCreateView.as_view(), name='location-create'),
@@ -23,7 +23,5 @@ urlpatterns = [
     path('location-services/detail/<int:pk>/', LocationServiceDetailView.as_view(), name='location-service-detail'),
 
     # favorites routing
-    path('favorites/add/', AddFavoriteView.as_view(), name='add-favorite'),
-    path('favorites/remove/', RemoveFavoriteView.as_view(), name='remove-favorite'),
-    path('favorites/', ListFavoritesView.as_view(), name='list-favorites'),
+   
 ]

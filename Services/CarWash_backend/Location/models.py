@@ -84,13 +84,3 @@ class LocationService(models.Model):
         ordering = ['name']
 
 #model for Favorite locations
-class Favorite(models.Model):
-    """
-    Model representing a user's favorite location.
-    """
-    user = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name='favorites')
-    location = models.ForeignKey('Location', on_delete=models.CASCADE, related_name='favorited_by')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = ('user', 'location')
