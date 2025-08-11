@@ -96,10 +96,16 @@ Main URL configuration: `CarWash_System/Services/CarWash_backend/CarWash_backend
 
 1. **Clone the repository**
 2. **Install dependencies:**
+    ```powershell
+    python3 -m venv venv
+    venv\Sripts\activate
    ```bash
    python3 -m venv venv
    source venv/bin/activate
+   
+   at the root folder
    pip install -r requirements.txt
+
    ```
 3. **Configure environment variables and settings in `settings.py`**
 4. **Apply migrations:**
