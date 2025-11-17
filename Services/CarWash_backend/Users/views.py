@@ -928,16 +928,24 @@ class RemoveFavoriteView(generics.DestroyAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def delete(self, request, *args, **kwargs):
-        location_id = request.data.get('location')
-        favorite = Favorite.objects.filter(user=request.user, location_id=location_id).first()
-        if favorite:
-            favorite.delete()
-            return Response({'detail': 'Removed from favorites.'}, status=status.HTTP_204_NO_CONTENT)
-        return Response({'detail': 'Favorite not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            location_id = request.data.get('location')
+            customer_profile = CustomerProfile.objects.get(user=request.user)
+            favorite = Favorite.objects.filter(user=customer_profile, location_id=location_id).first()
+            if favorite:
+                favorite.delete()
+                return Response({'detail': 'Removed from favorites.'}, status=status.HTTP_204_NO_CONTENT)
+            return Response({'detail': 'Favorite not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except CustomerProfile.DoesNotExist:
+            return Response({'detail': 'Customer profile not found.'}, status=status.HTTP_404_NOT_FOUND)
 
 class ListFavoritesView(generics.ListAPIView):
     serializer_class = FavoriteSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return Favorite.objects.filter(user=self.request.user)
+        try:
+            customer_profile = CustomerProfile.objects.get(user=self.request.user)
+            return Favorite.objects.filter(user=customer_profile)
+        except CustomerProfile.DoesNotExist:
+            return Favorite.objects.none()

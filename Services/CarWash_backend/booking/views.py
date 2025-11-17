@@ -140,12 +140,14 @@ class BookingListView(generics.ListAPIView):
         if payment_status_filter:
             queryset = queryset.filter(payment_status=payment_status_filter)
         
-        # Date range filter
+        # Date range filter with timezone awareness
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
         if date_from:
+            date_from = timezone.make_aware(timezone.datetime.strptime(date_from, "%Y-%m-%d"))
             queryset = queryset.filter(booking_date__gte=date_from)
         if date_to:
+            date_to = timezone.make_aware(timezone.datetime.strptime(date_to, "%Y-%m-%d"))
             queryset = queryset.filter(booking_date__lte=date_to)
         
         return queryset

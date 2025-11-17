@@ -9,6 +9,10 @@ from datetime import timedelta
 from django.utils import timezone
 
 
+def make_aware_if_naive(dt):
+    """Helper function to make naive datetime timezone-aware"""
+    return timezone.make_aware(dt) if timezone.is_naive(dt) else dt
+
 
 class booking(models.Model):
     """
@@ -85,6 +89,19 @@ class booking(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     confirmed_at = models.DateTimeField(null=True, blank=True, help_text="When the booking was confirmed")
     payment_completed_at = models.DateTimeField(null=True, blank=True, help_text="When payment was completed")
+
+    def save(self, *args, **kwargs):
+        # Ensure all datetime fields are timezone-aware
+        if self.booking_date:
+            self.booking_date = make_aware_if_naive(self.booking_date)
+        if self.time_slot_end:
+            self.time_slot_end = make_aware_if_naive(self.time_slot_end)
+        if self.confirmed_at:
+            self.confirmed_at = make_aware_if_naive(self.confirmed_at)
+        if self.payment_completed_at:
+            self.payment_completed_at = make_aware_if_naive(self.payment_completed_at)
+            
+        super().save(*args, **kwargs)
 
     class Meta:
         verbose_name = "booking"
